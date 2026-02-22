@@ -1,18 +1,7 @@
-package wafna.parser
+package wafna.parser.lr0
 
+import kotlin.collections.iterator
 import java.util.*
-
-// The state's basis is the set of configs that transitioned to it.
-// The state's extension is the closure on the dotted elements from the basis configs.
-data class State(val id: Int, val basis: List<Config>, val extension: List<Config>) {
-    internal var action: Action? = null
-
-    // Two states are equal if their bases are equal.
-    fun basisEquals(other: List<Config>): Boolean =
-        basis.size == other.size && basis.all { c -> other.any { it == c } }
-}
-
-class Parser(val states: List<State>, val start: FragmentType, val end: FragmentType)
 
 // The first production defines the start fragment at the LHS and the end fragment at the end of the RHS.
 // These fragments must appear nowhere else.

@@ -1,4 +1,4 @@
-package wafna.parser
+package wafna.parser.lr0
 
 // Grammatical element.
 // Tags elements of the grammar and gives them names for printing.
@@ -34,4 +34,16 @@ sealed interface Action
 class Shift(val shifts: Map<FragmentType, State>) : Action
 class Reduce(val fragmentType: FragmentType, val count: Int) : Action
 class Accept(val fragmentType: FragmentType, val count: Int) : Action
+
+// The state's basis is the set of configs that transitioned to it.
+// The state's extension is the closure on the dotted elements from the basis configs.
+data class State(val id: Int, val basis: List<Config>, val extension: List<Config>) {
+    internal var action: Action? = null
+
+    // Two states are equal if their bases are equal.
+    fun basisEquals(other: List<Config>): Boolean =
+        basis.size == other.size && basis.all { c -> other.any { it == c } }
+}
+
+class Parser(val states: List<State>, val start: FragmentType, val end: FragmentType)
 

@@ -1,9 +1,10 @@
-package wafna.parser
+package wafna.parser.lr0
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.junit.jupiter.api.assertThrows
+import wafna.parser.toList
 
 private operator fun FragmentType.invoke(text: String? = null): Fragment =
     Fragment(this, text)
@@ -16,9 +17,9 @@ class TestLR0 {
             PTNode(
                 fragment = Expr(),
                 children = listOf(
-                    PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(x))))),
+                    PTNode(Expr(), listOf(PTNode(TSum(), listOf(PTNode(x))))),
                     PTNode(plus),
-                    PTNode(Term(), listOf(PTNode(y)))
+                    PTNode(TSum(), listOf(PTNode(y)))
                 )
             )
         )
@@ -32,9 +33,9 @@ class TestLR0 {
                 Expr(),
                 listOf(
                     PTNode(
-                        Term(), listOf(
+                        TSum(), listOf(
                             PTNode(lparen),
-                            PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(x))))),
+                            PTNode(Expr(), listOf(PTNode(TSum(), listOf(PTNode(x))))),
                             PTNode(rparen)
                         )
                     )
@@ -50,18 +51,18 @@ class TestLR0 {
             PTNode(
                 Expr(),
                 listOf(
-                    PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(x))))),
+                    PTNode(Expr(), listOf(PTNode(TSum(), listOf(PTNode(x))))),
                     PTNode(plus),
                     PTNode(
-                        Term(),
+                        TSum(),
                         listOf(
                             PTNode(lparen),
                             PTNode(
                                 Expr(),
                                 listOf(
-                                    PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(y))))),
+                                    PTNode(Expr(), listOf(PTNode(TSum(), listOf(PTNode(y))))),
                                     PTNode(plus),
-                                    PTNode(Term(), listOf(PTNode(z)))
+                                    PTNode(TSum(), listOf(PTNode(z)))
                                 )
                             ),
                             PTNode(rparen)
@@ -101,16 +102,41 @@ class TestLR0 {
         }
     }
 
+    @Test
+    fun `grammar conflict`() {
+        // Shift reduce conflict in state 4.
+        assertThrows<Throwable> {
+            val grammar = listOf(
+                Start(Expr, End),
+                Expr(Expr, Plus, TSum),
+                Expr(TSum),
+                TSum(TSum, Times, TProd),
+                TSum(TProd),
+                TProd(Id),
+                TProd(LParen, Expr, RParen)
+            ).apply {
+                println("--- Grammar")
+                forEach { println(it.show) }
+            }
+            val parser = runGrammar(grammar).apply {
+                println("--- States")
+                states.forEach { println(it.show) }
+            }
+        }
+    }
+
     private companion object {
         // Define the vocabulary tagged with friendly names.
         object Start : FragmentType("∅")
         object End : FragmentType("$")
         object Expr : FragmentType("E")
-        object Term : FragmentType("T")
+        object TSum : FragmentType("T")
+        object TProd : FragmentType("P")
         object Id : FragmentType("id")
         object LParen : FragmentType("(")
         object RParen : FragmentType(")")
         object Plus : FragmentType("+")
+        object Times : FragmentType("*")
 
         val rparen = RParen("(")
         val lparen = LParen("(")
@@ -121,26 +147,13 @@ class TestLR0 {
 
         val grammar = listOf(
             Start(Expr, End),
-            Expr(Expr, Plus, Term),
-            Expr(Term),
-            Term(Id),
-            Term(LParen, Expr, RParen)
-        ).apply {
-            println("--- Grammar")
-            forEach { println(it.show) }
-        }
+            Expr(Expr, Plus, TSum),
+            Expr(TSum),
+            TSum(Id),
+            TSum(LParen, Expr, RParen)
+        )
 
-        val parser = runGrammar(grammar).apply {
-            println("--- States")
-            states.forEach { println(it.show) }
-        }
-
-        fun <T> Iterator<T>.toList(): List<T> =
-            buildList {
-                while (hasNext()) {
-                    add(next())
-                }
-            }
+        val parser = runGrammar(grammar)
 
         private fun testInput(input: List<Fragment>, expected: PTNode) {
             val input = input.iterator()
