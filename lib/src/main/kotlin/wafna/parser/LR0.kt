@@ -63,6 +63,7 @@ fun runGrammar(grammar: List<Production>): Parser {
             }
         }
         // In the LR(0) regime, there must be one reduction XOR a positive number of shifts.
+        require(reductions.isNotEmpty() or shifts.isNotEmpty()) { "Empty state: ${state.show}" }
         require(reductions.isEmpty() xor shifts.isEmpty()) { "Shift-reduce conflict in ${state.show}" }
         val action = if (reductions.isNotEmpty()) {
             require(1 == reductions.size) { "Unique reduction required.${reductions.joinToString { "\n${it.show}" }}" }
@@ -91,11 +92,11 @@ fun runGrammar(grammar: List<Production>): Parser {
     return Parser(states, start, end)
 }
 
-internal data class PTNode(val fragment: Fragment, val children: List<PTNode> = emptyList())
+data class PTNode(val fragment: Fragment, val children: List<PTNode> = emptyList())
 
 private data class ParseState(val state: State, val node: PTNode)
 
-internal fun runParser(parser: Parser, input: Iterator<Fragment>): PTNode {
+fun runParser(parser: Parser, input: Iterator<Fragment>): PTNode {
     fun nextInput() = PTNode(if (input.hasNext()) input.next() else Fragment(parser.end))
     val stack = Stack<ParseState>().apply {
         val state0 = parser.states.first()
@@ -111,6 +112,10 @@ internal fun runParser(parser: Parser, input: Iterator<Fragment>): PTNode {
 
                 else -> when (val shiftAction = shift.action!!) {
                     is Accept -> {
+                        // Double-checking the requirements when the parser was generated.
+                        require(shiftAction.fragmentType == parser.start) {
+                            "Must reduce the start production when accepting."
+                        }
                         stack.pop().apply { require(node.fragment.type == parser.end) }
                         return
                     }

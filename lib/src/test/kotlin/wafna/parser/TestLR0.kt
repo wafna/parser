@@ -3,38 +3,39 @@ package wafna.parser
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.assertThrows
 
 private operator fun FragmentType.invoke(text: String? = null): Fragment =
     Fragment(this, text)
 
 class TestLR0 {
     @Test
-    fun `x + y`() {
+    fun `good x + y`() {
         testInput(
-            listOf(Number("12"), Plus("+"), Number("24")),
+            listOf(x, plus, y),
             PTNode(
                 fragment = Expr(),
                 children = listOf(
-                    PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(Number("12")))))),
-                    PTNode(Plus("+")),
-                    PTNode(Term(), listOf(PTNode(Number("24"))))
+                    PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(x))))),
+                    PTNode(plus),
+                    PTNode(Term(), listOf(PTNode(y)))
                 )
             )
         )
     }
 
     @Test
-    fun `(x)`() {
+    fun `good (x)`() {
         testInput(
-            listOf(LParen("("), Number("42"), RParen(")")),
+            listOf(lparen, x, rparen),
             PTNode(
                 Expr(),
                 listOf(
                     PTNode(
                         Term(), listOf(
-                            PTNode(LParen("(")),
-                            PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(Number("42")))))),
-                            PTNode(RParen(")"))
+                            PTNode(lparen),
+                            PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(x))))),
+                            PTNode(rparen)
                         )
                     )
                 )
@@ -43,32 +44,61 @@ class TestLR0 {
     }
 
     @Test
-    fun `x + (y + z)`() {
+    fun `good x + (y + z)`() {
         testInput(
-            listOf(Number("55"), Plus("+"), LParen("("), Number("336"), Plus("+"), Number("85"), RParen(")")),
+            listOf(x, plus, lparen, y, plus, z, rparen),
             PTNode(
                 Expr(),
                 listOf(
-                    PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(Number("55")))))),
-                    PTNode(Plus("+")),
+                    PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(x))))),
+                    PTNode(plus),
                     PTNode(
                         Term(),
                         listOf(
-                            PTNode(LParen("(")),
+                            PTNode(lparen),
                             PTNode(
                                 Expr(),
                                 listOf(
-                                    PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(Number("336")))))),
-                                    PTNode(Plus("+")),
-                                    PTNode(Term(), listOf(PTNode(Number("85"))))
+                                    PTNode(Expr(), listOf(PTNode(Term(), listOf(PTNode(y))))),
+                                    PTNode(plus),
+                                    PTNode(Term(), listOf(PTNode(z)))
                                 )
                             ),
-                            PTNode(RParen(")"))
+                            PTNode(rparen)
                         )
                     )
                 )
             )
         )
+    }
+
+    @Test
+    fun `bad x y`() {
+        assertThrows<Throwable> {
+            testInput(
+                listOf(x, y),
+                PTNode(Start())
+            )
+        }
+    }
+    @Test
+    fun `bad   ( (`() {
+        assertThrows<Throwable> {
+            testInput(
+                listOf(lparen, lparen),
+                PTNode(Start())
+            )
+        }
+    }
+
+    @Test
+    fun `bad ) x`() {
+        assertThrows<Throwable> {
+            testInput(
+                listOf(rparen, x),
+                PTNode(Start())
+            )
+        }
     }
 
     private companion object {
@@ -77,16 +107,23 @@ class TestLR0 {
         object End : FragmentType("$")
         object Expr : FragmentType("E")
         object Term : FragmentType("T")
-        object Number : FragmentType("N")
+        object Id : FragmentType("id")
         object LParen : FragmentType("(")
         object RParen : FragmentType(")")
         object Plus : FragmentType("+")
+
+        val rparen = RParen("(")
+        val lparen = LParen("(")
+        val plus = Plus("+")
+        val x = Id("x")
+        val y = Id("y")
+        val z = Id("z")
 
         val grammar = listOf(
             Start(Expr, End),
             Expr(Expr, Plus, Term),
             Expr(Term),
-            Term(Number),
+            Term(Id),
             Term(LParen, Expr, RParen)
         ).apply {
             println("--- Grammar")
