@@ -1,0 +1,36 @@
+# https://taskfile.dev
+
+version: '3'
+silent: true
+tasks:
+  # Tagged, clean build for deployment.
+  dist:
+    cmds:
+      - ./gradlew --warning-mode all --rerun-tasks clean build &&
+        git tag --force --no-sign "$(date -u +"%Y-%m-%d-%H-%M-%S")-dist-$USERNAME"
+  test:
+    cmds:
+      - ./gradlew --warning-mode all test
+  build:
+    cmds:
+      - ./gradlew --warning-mode all build
+  clean:
+    cmds:
+      - ./gradlew --warning-mode all clean
+  check:
+    cmds:
+      - ./gradlew --warning-mode all --rerun-tasks check
+  # Check for deps that need updating.
+  dep-update:
+    cmds:
+      - ./gradlew --no-parallel dependencyUpdates | tee ../.local/dependency-update.txt
+  # Check for deps with vulnerabilities.
+  dep-check:
+    cmds:
+      - ./gradlew --build-cache dependencyCheckAnalyze --info | tee ../.local/dependency-check.txt
+  docs:
+    cmds:
+      - ./gradlew dokkaGenerate
+  gradle:
+    cmds:
+      - ./gradlew tasks
