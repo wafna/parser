@@ -1,6 +1,39 @@
 package wafna.parser.lr0
 
-import java.util.*
+import java.util.Stack
+
+// Configurations track the matching of a production in parse states.
+@Suppress("EqualsOrHashCode")
+@ConsistentCopyVisibility
+data class Config private constructor(val production: Production, val dot: Int) {
+    constructor(production: Production) : this(production, 0)
+    // When it goes off the end we have a reduction.
+    val dotted = if (dot < production.rhs.size) production.rhs[dot] else null
+    fun bump() = copy(dot = dot + 1)
+    override fun equals(other: Any?): Boolean =
+        (other as? Config)?.let {
+            production == other.production && dot == other.dot
+        } ?: error("What the hell are you even doing?")
+
+}
+
+// Each state does exactly one thing.
+sealed interface Action
+class Shift(val shifts: Map<FragmentType, State>) : Action
+class Reduce(val fragmentType: FragmentType, val count: Int) : Action
+class Accept(val fragmentType: FragmentType, val count: Int) : Action
+
+// The state's basis is the set of configs that transitioned to it.
+// The state's extension is the closure on the dotted elements from the basis configs.
+data class State(val id: Int, val basis: List<Config>, val extension: List<Config>) {
+    internal var action: Action? = null
+
+    // Two states are equal if their bases are equal.
+    fun basisEquals(other: List<Config>): Boolean =
+        basis.size == other.size && basis.all { c -> other.any { it == c } }
+}
+
+class Parser(val states: List<State>, val start: FragmentType, val end: FragmentType)
 
 // The first production defines the start fragment at the LHS and the end fragment at the end of the RHS.
 // These fragments must appear nowhere else.
@@ -134,9 +167,6 @@ fun runParser(parser: Parser, input: Iterator<Fragment>): PTNode {
     }
     return stack.pop().node
 }
-
-val Production.show: String
-    get() = "$lhs → ${rhs.joinToString(" ")}"
 
 val Config.show: String
     get() = "${production.lhs} → ${
