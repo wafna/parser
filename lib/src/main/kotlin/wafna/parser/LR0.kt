@@ -18,7 +18,7 @@ class Parser(val states: List<State>, val start: FragmentType, val end: Fragment
 // These fragments must appear nowhere else.
 fun runGrammar(grammar: List<Production>): Parser {
     val state0 = grammar.first()
-    // The LHS and last RHS of the start state define the start and end symbols.
+    // The LHS and last RHS of the augmenting production define the start and end symbols.
     val (start, end) = state0.lhs to state0.rhs.reversed().first()
     require(state0.rhs.reversed().drop(1).none { it == start || it == end }) {
         "The $start and $end fragments must not appear in the middle of the start production."
