@@ -144,33 +144,28 @@ internal fun runInput(parser: List<State>, input: Iterator<Fragment>): PTNode {
     tailrec fun next() {
         val (state, node) = stack.peek()
         when (val action = state.action!!) {
-            is Shift -> {
-                when (val shift = action.shifts[node.fragment]) {
-                    null ->
-                        error("No transition for ${node.fragment} in ${state.show}")
+            is Shift -> when (val shift = action.shifts[node.fragment]) {
+                null ->
+                    error("No transition for ${node.fragment} in ${state.show}")
 
-                    else -> when (val shiftAction = shift.action!!) {
-                        is Reduce -> {
-                            val children = List(shiftAction.count) { stack.pop() }.reversed()
-                            val s = children.first().state
-                            stack.push(ParseState(s, PTNode(shiftAction.fragment, children.map { it.node })))
-                        }
-
-                        is Accept -> {
-                            stack.pop()
-                            return
-                        }
-
-                        is Shift ->
-                            stack.push(ParseState(shift, PTNode(input.nextFragment())))
+                else -> when (val shiftAction = shift.action!!) {
+                    is Accept -> {
+                        stack.pop()
+                        return
                     }
+
+                    is Reduce -> {
+                        val children = List(shiftAction.count) { stack.pop() }.reversed()
+                        val s = children.first().state
+                        stack.push(ParseState(s, PTNode(shiftAction.fragment, children.map { it.node })))
+                    }
+
+                    is Shift ->
+                        stack.push(ParseState(shift, PTNode(input.nextFragment())))
                 }
             }
 
-            is Accept ->
-                stack.pop()
-
-            is Reduce -> error("Reductions should be handled in line with Shifts")
+            else -> error("Only shifts are handled here: $action")
         }
         next()
     }
