@@ -87,7 +87,7 @@ internal data class PTNode(val fragment: Fragment, val children: List<PTNode> = 
 
 private data class ParseState(val state: State, val node: PTNode)
 
-internal fun runInput(parser: Parser, input: Iterator<Fragment>): PTNode {
+internal fun runParser(parser: Parser, input: Iterator<Fragment>): PTNode {
     fun nextInput(): PTNode = PTNode(if (input.hasNext()) input.next() else parser.end)
     val stack = Stack<ParseState>().apply {
         val state0 = parser.states.first()
