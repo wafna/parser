@@ -9,7 +9,7 @@ repositories {
 
 dependencies {
     api(libs.commons.math3)
-    val arrowVersion = "2.2.1"
+    val arrowVersion = "2.2.1.1"
     implementation("io.arrow-kt:arrow-core:$arrowVersion")
     implementation("io.arrow-kt:arrow-core-jvm:$arrowVersion")
     implementation("io.arrow-kt:arrow-fx-coroutines-jvm:$arrowVersion")
@@ -20,7 +20,7 @@ testing {
         Suppress("unused")
         @Suppress("UnstableApiUsage")
         val test by getting(JvmTestSuite::class) {
-            useKotlinTest("2.2.21")
+            useKotlinTest("2.3.20-RC")
         }
     }
 }

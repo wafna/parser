@@ -2,57 +2,9 @@ package wafna.parser
 
 import java.util.*
 
-// Grammatical element.
-// It seems we don't need to distinguish between atomic and composite fragments
-// (other than that the leaves are never on the LHS of a production, of course).
-sealed class Fragment(val name: String? = null) {
-    override fun toString(): String = name ?: this::class.java.simpleName
-}
-
-object Start : Fragment("START")
-object End : Fragment("END")
-object Expr : Fragment("E")
-object Term : Fragment("T")
-object Number : Fragment("N")
-object LParen : Fragment("(")
-object RParen : Fragment(")")
-object Plus : Fragment("+")
-
-data class Production(val lhs: Fragment, val rhs: List<Fragment>)
-
-operator fun Fragment.invoke(vararg lhs: Fragment): Production =
-    Production(this, lhs.asList())
-
-internal val grammar = listOf(
-    Start(Expr, End),
-    Expr(Expr, Plus, Term),
-    Expr(Term),
-    Term(Number),
-    Term(LParen, Expr, RParen)
-)
-
-@Suppress("EqualsOrHashCode")
-@ConsistentCopyVisibility
-internal data class Config internal constructor(val production: Production, val dot: Int) {
-    constructor(production: Production) : this(production, 0)
-    // When it goes off the end we have a reduction.
-    val dotted = if (dot < production.rhs.size) production.rhs[dot] else null
-    fun bump() = copy(dot = dot + 1)
-    override fun equals(other: Any?): Boolean =
-        (other as? Config)?.let {
-            production == other.production && dot == other.dot
-        } ?: error("What the hell are you even doing?")
-
-}
-
-internal sealed interface Action
-internal class Shift(val shifts: Map<Fragment, State>) : Action
-internal class Reduce(val fragment: Fragment, val count: Int) : Action
-internal class Accept(val fragment: Fragment, val count: Int) : Action
-
 // The state's basis is the set of configs that transitioned to it.
 // The state's extension is the closure on the dotted elements from the basis configs.
-internal data class State(val id: Int, val basis: List<Config>, val extension: List<Config>) {
+data class State(val id: Int, val basis: List<Config>, val extension: List<Config>) {
     internal var action: Action? = null
 
     // Two states are equal if their bases are equal.
@@ -60,16 +12,18 @@ internal data class State(val id: Int, val basis: List<Config>, val extension: L
         basis.size == other.size && basis.all { c -> other.any { it == c } }
 }
 
-internal fun runGrammar(grammar: List<Production>): List<State> {
-    // The first and no other rule in the grammar must generate the Start.
-    val start = grammar.first().apply {
-        require(lhs == Start && rhs.last() == End && rhs.reversed().drop(1).none { it == Start || it == End })
-    }
+class Parser(val states: List<State>, val start: Fragment, val end: Fragment)
+
+fun runGrammar(grammar: List<Production>): Parser {
+    val state0 = grammar.first()
+    // The LHS and last RHS of the start state define the start and end symbols.
+    val (start, end) = state0.lhs to state0.rhs.reversed().first()
     val grammar = grammar.drop(1).apply {
-        require(none { it.lhs == Start || it.lhs == End })
-        require(all { it.rhs.none { it == Start || it == End } })
+        require(none { it.lhs == start || it.lhs == end })
+        require(all { it.rhs.none { it == start || it == end } })
     }
     val states = mutableListOf<State>()
+    // Compute the closure on the basis configs.
     fun runState(basis: List<Config>): State {
         require(states.none { it.basisEquals(basis) })
         val extension = mutableListOf<Config>()
@@ -105,7 +59,7 @@ internal fun runGrammar(grammar: List<Production>): List<State> {
         val action = if (reductions.isNotEmpty()) {
             require(1 == reductions.size) { "Unique reduction required." }
             reductions.first().run {
-                if (production.rhs.last() == End)
+                if (production.rhs.last() == end)
                     Accept(production.lhs, production.rhs.size - 1)
                 else
                     Reduce(production.lhs, production.rhs.size)
@@ -125,20 +79,19 @@ internal fun runGrammar(grammar: List<Production>): List<State> {
         state.action = action
         return state
     }
-    runState(listOf(Config(start)))
-    return states
+    runState(listOf(Config(state0)))
+    return Parser(states, start, end)
 }
 
 internal data class PTNode(val fragment: Fragment, val children: List<PTNode> = emptyList())
 
-internal fun Iterator<Fragment>.nextFragment(): Fragment =
-    if (hasNext()) next() else End
-
 private data class ParseState(val state: State, val node: PTNode)
 
-internal fun runInput(parser: List<State>, input: Iterator<Fragment>): PTNode {
+internal fun runInput(parser: Parser, input: Iterator<Fragment>): PTNode {
+    fun nextInput(): PTNode = PTNode(if (input.hasNext()) input.next() else parser.end)
     val stack = Stack<ParseState>().apply {
-        push(ParseState(parser.first(), PTNode(input.nextFragment())))
+        val state0 = parser.states.first()
+        push(ParseState(state0, nextInput()))
     }
 
     tailrec fun next() {
@@ -150,18 +103,18 @@ internal fun runInput(parser: List<State>, input: Iterator<Fragment>): PTNode {
 
                 else -> when (val shiftAction = shift.action!!) {
                     is Accept -> {
-                        stack.pop()
+                        stack.pop().apply { require(node.fragment == parser.end) }
                         return
                     }
 
                     is Reduce -> {
                         val children = List(shiftAction.count) { stack.pop() }.reversed()
-                        val s = children.first().state
-                        stack.push(ParseState(s, PTNode(shiftAction.fragment, children.map { it.node })))
+                        val parentState = children.first().state
+                        stack.push(ParseState(parentState, PTNode(shiftAction.fragment, children.map { it.node })))
                     }
 
                     is Shift ->
-                        stack.push(ParseState(shift, PTNode(input.nextFragment())))
+                        stack.push(ParseState(shift, nextInput()))
                 }
             }
 

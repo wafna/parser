@@ -10,9 +10,26 @@ fun <T> Iterator<T>.toList(): List<T> = buildList {
     }
 }
 
+object Start : Fragment("START")
+object End : Fragment("END")
+object Expr : Fragment("E")
+object Term : Fragment("T")
+object Number : Fragment("N")
+object LParen : Fragment("(")
+object RParen : Fragment(")")
+object Plus : Fragment("+")
+
+internal val grammar = listOf(
+    Start(Expr, End),
+    Expr(Expr, Plus, Term),
+    Expr(Term),
+    Term(Number),
+    Term(LParen, Expr, RParen)
+)
+
 class TestLR0 {
     @Test
-    fun lr0() {
+    fun `x + y`() {
         testInput(
             listOf(Number, Plus, Number),
             PTNode(
@@ -24,6 +41,9 @@ class TestLR0 {
                 )
             )
         )
+    }
+
+    fun `(x)`() {
         testInput(
             listOf(LParen, Number, RParen),
             PTNode(
@@ -39,6 +59,9 @@ class TestLR0 {
                 )
             )
         )
+    }
+
+    fun `x + (y + z)`() {
         testInput(
             listOf(Number, Plus, LParen, Number, Plus, Number, RParen),
             PTNode(
