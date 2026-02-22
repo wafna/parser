@@ -1,6 +1,5 @@
 package wafna.parser.lr0
 
-import kotlin.collections.iterator
 import java.util.*
 
 // The first production defines the start fragment at the LHS and the end fragment at the end of the RHS.
@@ -13,7 +12,7 @@ fun runGrammar(grammar: List<Production>): Parser {
         "The $start and $end fragments must not appear in the middle of the start production."
     }
     val grammar = grammar.drop(1).apply {
-        filter {it.lhs == start || it.lhs == end || it.rhs.any { it == start || it == end }}.also { bad ->
+        filter { it.lhs == start || it.lhs == end || it.rhs.any { it == start || it == end } }.also { bad ->
             require(bad.isEmpty()) {
                 "The $start and $end fragments must not appear outside of the start production:${bad.joinToString { "\n${it.show}" }}"
             }
@@ -112,7 +111,12 @@ fun runParser(parser: Parser, input: Iterator<Fragment>): PTNode {
                     is Reduce -> {
                         val children = List(shiftAction.count) { stack.pop() }.reversed()
                         val parentState = children.first().state
-                        stack.push(ParseState(parentState, PTNode(Fragment(shiftAction.fragmentType), children.map { it.node })))
+                        stack.push(
+                            ParseState(
+                                parentState,
+                                PTNode(Fragment(shiftAction.fragmentType), children.map { it.node })
+                            )
+                        )
                     }
 
                     is Shift ->
@@ -131,10 +135,10 @@ fun runParser(parser: Parser, input: Iterator<Fragment>): PTNode {
     return stack.pop().node
 }
 
-internal val Production.show: String
+val Production.show: String
     get() = "$lhs → ${rhs.joinToString(" ")}"
 
-internal val Config.show: String
+val Config.show: String
     get() = "${production.lhs} → ${
         buildList {
             production.rhs.withIndex().forEach { (i, e) ->
@@ -146,7 +150,7 @@ internal val Config.show: String
         }.joinToString(" ")
     }"
 
-internal val State.show: String
+val State.show: String
     get() = buildString {
         appendLine("STATE $id")
         basis.forEach { appendLine("- ${it.show}") }

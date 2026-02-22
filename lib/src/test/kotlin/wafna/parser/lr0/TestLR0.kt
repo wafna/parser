@@ -118,7 +118,7 @@ class TestLR0 {
                 println("--- Grammar")
                 forEach { println(it.show) }
             }
-            val parser = runGrammar(grammar).apply {
+            runGrammar(grammar).apply {
                 println("--- States")
                 states.forEach { println(it.show) }
             }
