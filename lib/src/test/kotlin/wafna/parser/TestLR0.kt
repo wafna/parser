@@ -10,7 +10,7 @@ class TestLR0 {
         testInput(
             listOf(Number, Plus, Number),
             PTNode(
-                fragment = Expr,
+                fragmentType = Expr,
                 children = listOf(
                     PTNode(Expr, listOf(PTNode(Term, listOf(PTNode(Number))))),
                     PTNode(Plus),
@@ -70,14 +70,14 @@ class TestLR0 {
 
     private companion object {
         // Define the vocabulary tagged with friendly names.
-        object Start : Fragment("∅")
-        object End : Fragment("$")
-        object Expr : Fragment("E")
-        object Term : Fragment("T")
-        object Number : Fragment("N")
-        object LParen : Fragment("(")
-        object RParen : Fragment(")")
-        object Plus : Fragment("+")
+        object Start : FragmentType("∅")
+        object End : FragmentType("$")
+        object Expr : FragmentType("E")
+        object Term : FragmentType("T")
+        object Number : FragmentType("N")
+        object LParen : FragmentType("(")
+        object RParen : FragmentType(")")
+        object Plus : FragmentType("+")
 
         val grammar = listOf(
             Start(Expr, End),
@@ -102,7 +102,7 @@ class TestLR0 {
                 }
             }
 
-        private fun testInput(input: List<Fragment>, expected: PTNode) {
+        private fun testInput(input: List<FragmentType>, expected: PTNode) {
             val input = input.iterator()
             val actual = runParser(parser, input)
             assertTrue(!input.hasNext(), "Remaining input: ${input.toList().joinToString()}")

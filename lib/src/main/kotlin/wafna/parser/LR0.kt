@@ -12,7 +12,7 @@ data class State(val id: Int, val basis: List<Config>, val extension: List<Confi
         basis.size == other.size && basis.all { c -> other.any { it == c } }
 }
 
-class Parser(val states: List<State>, val start: Fragment, val end: Fragment)
+class Parser(val states: List<State>, val start: FragmentType, val end: FragmentType)
 
 // The first production defines the start fragment at the LHS and the end fragment at the end of the RHS.
 // These fragments must appear nowhere else.
@@ -55,7 +55,7 @@ fun runGrammar(grammar: List<Production>): Parser {
         val state = State(states.size, basis, extension)
         states.add(state)
         val reductions = mutableListOf<Config>()
-        val shifts = mutableListOf<Pair<Fragment, Config>>()
+        val shifts = mutableListOf<Pair<FragmentType, Config>>()
         (basis + extension).forEach { config ->
             when (val dotted = config.dotted) {
                 null -> reductions.add(config)
@@ -73,7 +73,7 @@ fun runGrammar(grammar: List<Production>): Parser {
                     Reduce(production.lhs, production.rhs.size)
             }
         } else if (shifts.isNotEmpty()) {
-            val transitions = mutableMapOf<Fragment, State>()
+            val transitions = mutableMapOf<FragmentType, State>()
             for ((symbol, configs) in shifts.groupBy { it.first }) {
                 val newBasis = configs.map { it.second.bump() }
                 val target = when (val t = states.find { it.basisEquals(newBasis) }) {
@@ -91,11 +91,11 @@ fun runGrammar(grammar: List<Production>): Parser {
     return Parser(states, start, end)
 }
 
-internal data class PTNode(val fragment: Fragment, val children: List<PTNode> = emptyList())
+internal data class PTNode(val fragmentType: FragmentType, val children: List<PTNode> = emptyList())
 
 private data class ParseState(val state: State, val node: PTNode)
 
-internal fun runParser(parser: Parser, input: Iterator<Fragment>): PTNode {
+internal fun runParser(parser: Parser, input: Iterator<FragmentType>): PTNode {
     fun nextInput(): PTNode = PTNode(if (input.hasNext()) input.next() else parser.end)
     val stack = Stack<ParseState>().apply {
         val state0 = parser.states.first()
@@ -105,20 +105,20 @@ internal fun runParser(parser: Parser, input: Iterator<Fragment>): PTNode {
     tailrec fun next() {
         val (state, node) = stack.peek()
         when (val action = state.action!!) {
-            is Shift -> when (val shift = action.shifts[node.fragment]) {
+            is Shift -> when (val shift = action.shifts[node.fragmentType]) {
                 null ->
-                    error("No transition for ${node.fragment} in ${state.show}")
+                    error("No transition for ${node.fragmentType} in ${state.show}")
 
                 else -> when (val shiftAction = shift.action!!) {
                     is Accept -> {
-                        stack.pop().apply { require(node.fragment == parser.end) }
+                        stack.pop().apply { require(node.fragmentType == parser.end) }
                         return
                     }
 
                     is Reduce -> {
                         val children = List(shiftAction.count) { stack.pop() }.reversed()
                         val parentState = children.first().state
-                        stack.push(ParseState(parentState, PTNode(shiftAction.fragment, children.map { it.node })))
+                        stack.push(ParseState(parentState, PTNode(shiftAction.fragmentType, children.map { it.node })))
                     }
 
                     is Shift ->
@@ -159,8 +159,8 @@ internal val State.show: String
         extension.forEach { appendLine("  ${it.show}") }
         when (val a = action) {
             null -> appendLine("!!! ERROR: NO ACTION !!!")
-            is Accept -> appendLine("ACCEPT: ${a.fragment} ${a.count}")
-            is Reduce -> appendLine("REDUCE: ${a.fragment} ${a.count}")
+            is Accept -> appendLine("ACCEPT: ${a.fragmentType} ${a.count}")
+            is Reduce -> appendLine("REDUCE: ${a.fragmentType} ${a.count}")
             is Shift -> appendLine("SHIFT: ${a.shifts.toList().joinToString(", ") { "${it.first} → ${it.second.id}" }}")
         }
     }

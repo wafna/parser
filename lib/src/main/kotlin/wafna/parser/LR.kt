@@ -2,14 +2,16 @@ package wafna.parser
 
 // Grammatical element.
 // Tags elements of the grammar and gives them names for printing.
-open class Fragment(val name: String? = null) {
+open class FragmentType(val name: String? = null) {
     override fun toString(): String = name ?: this::class.java.simpleName
 }
 
-data class Production(val lhs: Fragment, val rhs: List<Fragment>)
+data class Fragment(val type: FragmentType, val text: String?)
+
+data class Production(val lhs: FragmentType, val rhs: List<FragmentType>)
 
 // Syntactical convenience when defining productions.
-operator fun Fragment.invoke(vararg lhs: Fragment): Production =
+operator fun FragmentType.invoke(vararg lhs: FragmentType): Production =
     Production(this, lhs.asList())
 
 // Configurations track the matching of a production in parse states.
@@ -29,7 +31,7 @@ data class Config private constructor(val production: Production, val dot: Int) 
 
 // Each state does exactly one thing.
 sealed interface Action
-class Shift(val shifts: Map<Fragment, State>) : Action
-class Reduce(val fragment: Fragment, val count: Int) : Action
-class Accept(val fragment: Fragment, val count: Int) : Action
+class Shift(val shifts: Map<FragmentType, State>) : Action
+class Reduce(val fragmentType: FragmentType, val count: Int) : Action
+class Accept(val fragmentType: FragmentType, val count: Int) : Action
 
