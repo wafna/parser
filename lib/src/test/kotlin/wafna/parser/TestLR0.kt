@@ -70,7 +70,7 @@ class TestLR0 {
 
     private companion object {
         // Define the vocabulary tagged with friendly names.
-        object Start : Fragment("0")
+        object Start : Fragment("∅")
         object End : Fragment("$")
         object Expr : Fragment("E")
         object Term : Fragment("T")
@@ -79,9 +79,6 @@ class TestLR0 {
         object RParen : Fragment(")")
         object Plus : Fragment("+")
 
-        // A grammar is a list of productions.
-        // The first defines the start fragment on the LHS and the end fragment at the end of the RHS.
-        // These fragments must appear nowhere else.
         val grammar = listOf(
             Start(Expr, End),
             Expr(Expr, Plus, Term),

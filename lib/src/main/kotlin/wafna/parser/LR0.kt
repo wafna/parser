@@ -14,13 +14,21 @@ data class State(val id: Int, val basis: List<Config>, val extension: List<Confi
 
 class Parser(val states: List<State>, val start: Fragment, val end: Fragment)
 
+// The first production defines the start fragment at the LHS and the end fragment at the end of the RHS.
+// These fragments must appear nowhere else.
 fun runGrammar(grammar: List<Production>): Parser {
     val state0 = grammar.first()
     // The LHS and last RHS of the start state define the start and end symbols.
     val (start, end) = state0.lhs to state0.rhs.reversed().first()
+    require(state0.rhs.reversed().drop(1).none { it == start || it == end }) {
+        "The $start and $end fragments must not appear in the middle of the start production."
+    }
     val grammar = grammar.drop(1).apply {
-        require(none { it.lhs == start || it.lhs == end })
-        require(all { it.rhs.none { it == start || it == end } })
+        filter {it.lhs == start || it.lhs == end || it.rhs.any { it == start || it == end }}.also { bad ->
+            require(bad.isEmpty()) {
+                "The $start and $end fragments must not appear outside of the start production:${bad.joinToString { "\n${it.show}" }}"
+            }
+        }
     }
     val states = mutableListOf<State>()
     // Compute the closure on the basis configs.
@@ -57,7 +65,7 @@ fun runGrammar(grammar: List<Production>): Parser {
         // In the LR(0) regime, there must be one reduction XOR a positive number of shifts.
         require(reductions.isEmpty() xor shifts.isEmpty()) { "Shift-reduce conflict in ${state.show}" }
         val action = if (reductions.isNotEmpty()) {
-            require(1 == reductions.size) { "Unique reduction required." }
+            require(1 == reductions.size) { "Unique reduction required.${reductions.joinToString { "\n${it.show}" }}" }
             reductions.first().run {
                 if (production.rhs.last() == end)
                     Accept(production.lhs, production.rhs.size - 1)
@@ -130,17 +138,17 @@ internal fun runParser(parser: Parser, input: Iterator<Fragment>): PTNode {
 }
 
 internal val Production.show: String
-    get() = "$lhs -> ${rhs.joinToString(" ")}"
+    get() = "$lhs → ${rhs.joinToString(" ")}"
 
 internal val Config.show: String
-    get() = "${production.lhs} -> ${
+    get() = "${production.lhs} → ${
         buildList {
             production.rhs.withIndex().forEach { (i, e) ->
-                if (i == dot) add("*")
+                if (i == dot) add("•")
                 add(e.toString())
             }
             if (production.rhs.size <= dot)
-                add("*")
+                add("•")
         }.joinToString(" ")
     }"
 
@@ -153,6 +161,6 @@ internal val State.show: String
             null -> appendLine("!!! ERROR: NO ACTION !!!")
             is Accept -> appendLine("ACCEPT: ${a.fragment} ${a.count}")
             is Reduce -> appendLine("REDUCE: ${a.fragment} ${a.count}")
-            is Shift -> appendLine("SHIFT: ${a.shifts.toList().joinToString(" ") { "(${it.first}, ${it.second.id})" }}")
+            is Shift -> appendLine("SHIFT: ${a.shifts.toList().joinToString(", ") { "${it.first} → ${it.second.id}" }}")
         }
     }

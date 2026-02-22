@@ -8,12 +8,14 @@ open class Fragment(val name: String? = null) {
 
 data class Production(val lhs: Fragment, val rhs: List<Fragment>)
 
+// Syntactical convenience when defining productions.
 operator fun Fragment.invoke(vararg lhs: Fragment): Production =
     Production(this, lhs.asList())
 
+// Configurations track the matching of a production in parse states.
 @Suppress("EqualsOrHashCode")
 @ConsistentCopyVisibility
-data class Config internal constructor(val production: Production, val dot: Int) {
+data class Config private constructor(val production: Production, val dot: Int) {
     constructor(production: Production) : this(production, 0)
     // When it goes off the end we have a reduction.
     val dotted = if (dot < production.rhs.size) production.rhs[dot] else null
@@ -25,6 +27,7 @@ data class Config internal constructor(val production: Production, val dot: Int)
 
 }
 
+// Each state does exactly one thing.
 sealed interface Action
 class Shift(val shifts: Map<Fragment, State>) : Action
 class Reduce(val fragment: Fragment, val count: Int) : Action
