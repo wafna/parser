@@ -6,7 +6,7 @@ open class FragmentType(val name: String? = null) {
     override fun toString(): String = name ?: this::class.java.simpleName
 }
 
-data class Fragment(val type: FragmentType, val text: String?)
+data class Fragment(val type: FragmentType, val text: String? = null)
 
 data class Production(val lhs: FragmentType, val rhs: List<FragmentType>)
 

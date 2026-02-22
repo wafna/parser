@@ -91,12 +91,12 @@ fun runGrammar(grammar: List<Production>): Parser {
     return Parser(states, start, end)
 }
 
-internal data class PTNode(val fragmentType: FragmentType, val children: List<PTNode> = emptyList())
+internal data class PTNode(val fragment: Fragment, val children: List<PTNode> = emptyList())
 
 private data class ParseState(val state: State, val node: PTNode)
 
-internal fun runParser(parser: Parser, input: Iterator<FragmentType>): PTNode {
-    fun nextInput(): PTNode = PTNode(if (input.hasNext()) input.next() else parser.end)
+internal fun runParser(parser: Parser, input: Iterator<Fragment>): PTNode {
+    fun nextInput() = PTNode(if (input.hasNext()) input.next() else Fragment(parser.end))
     val stack = Stack<ParseState>().apply {
         val state0 = parser.states.first()
         push(ParseState(state0, nextInput()))
@@ -105,20 +105,20 @@ internal fun runParser(parser: Parser, input: Iterator<FragmentType>): PTNode {
     tailrec fun next() {
         val (state, node) = stack.peek()
         when (val action = state.action!!) {
-            is Shift -> when (val shift = action.shifts[node.fragmentType]) {
+            is Shift -> when (val shift = action.shifts[node.fragment.type]) {
                 null ->
-                    error("No transition for ${node.fragmentType} in ${state.show}")
+                    error("No transition for ${node.fragment.type} in ${state.show}")
 
                 else -> when (val shiftAction = shift.action!!) {
                     is Accept -> {
-                        stack.pop().apply { require(node.fragmentType == parser.end) }
+                        stack.pop().apply { require(node.fragment.type == parser.end) }
                         return
                     }
 
                     is Reduce -> {
                         val children = List(shiftAction.count) { stack.pop() }.reversed()
                         val parentState = children.first().state
-                        stack.push(ParseState(parentState, PTNode(shiftAction.fragmentType, children.map { it.node })))
+                        stack.push(ParseState(parentState, PTNode(Fragment(shiftAction.fragmentType), children.map { it.node })))
                     }
 
                     is Shift ->
