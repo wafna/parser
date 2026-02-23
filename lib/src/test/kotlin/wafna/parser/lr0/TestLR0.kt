@@ -1,5 +1,6 @@
 package wafna.parser.lr0
 
+import kotlin.collections.forEach
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -151,9 +152,15 @@ class TestLR0 {
             Expr(TSum),
             TSum(Id),
             TSum(LParen, Expr, RParen)
-        )
+        ).apply {
+            println("--- Grammar")
+            forEach { println(it.show) }
+        }
 
-        val parser = runGrammar(grammar)
+        val parser = runGrammar(grammar).apply {
+            println("--- Parser")
+            states.forEach { println(it.show) }
+        }
 
         private fun testInput(input: List<Fragment>, expected: PTNode) {
             val input = input.iterator()

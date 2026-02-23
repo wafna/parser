@@ -2,8 +2,8 @@ package wafna.parser.lr1
 
 import kotlin.test.Test
 
-private operator fun NodeType.invoke(text: String? = null): Node =
-    Node(this, text)
+private operator fun SyntaxElementType.invoke(text: String? = null): SyntaxElement =
+    SyntaxElement(this, text)
 
 class TestLR1 {
     @Test
@@ -12,7 +12,7 @@ class TestLR1 {
 
     private companion object {
         // Augmenting.
-        object Start : NonTerminal("∅")
+        object Start : NonTerminal("@")
         object End : Terminal("$")
         // Non-terminals.
         object Expr : NonTerminal("E")
@@ -42,7 +42,7 @@ class TestLR1 {
             TProd(LParen, Expr, RParen)
         ).apply {
             println("--- Grammar")
-            forEach { println(it.show) }
+            forEach { println(it.toString() ) }
         }
     }
 }
