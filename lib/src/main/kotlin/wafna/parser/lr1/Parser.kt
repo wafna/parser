@@ -23,30 +23,26 @@ data class Production(val lhs: SyntaxElementType, val rhs: List<SyntaxElementTyp
 operator fun SyntaxElementType.invoke(vararg lhs: SyntaxElementType): Production =
     Production(this, lhs.asList())
 
-class Config private constructor(val production: Production, val dot: Int) {
-    constructor(production: Production) : this(production, 0)
+class Config private constructor(val production: Production, initFollow: Set<NonTerminal>, val dot: Int) {
+    constructor(production: Production) : this(production, emptySet(), 0)
+    constructor(production: Production, initFollow: Set<NonTerminal>) : this(production, initFollow, 0)
     // When it goes off the end we have a reduction.
     val dotted = if (dot < production.rhs.size) production.rhs[dot] else null
-    val follows = mutableSetOf<Terminal>()
-    fun bump() = Config(production, dot = dot + 1)
-    val next = if (dot + 1 < production.rhs.size) production.rhs[dot + 1] else null
+    val follows = initFollow.toMutableSet()
+    fun bump() = Config(production, follows, dot = dot + 1)
+    // The terminal after the dot
+    val follow =
+        if (dot >= production.rhs.size) emptySet()
+        else when (val n = production.rhs[dot + 1]) {
+            is Terminal -> emptySet()
+            is NonTerminal -> setOf(n)
+        }
     // For finding lookaheads to merge.
-    fun equalsProd(other: Config): Boolean =
+    infix fun equalsProd(other: Config): Boolean =
         production == other.production && dot == other.dot
     // For finding identical bases.
-    fun equalsALL(other: Config): Boolean =
+    infix fun equalsALL(other: Config): Boolean =
         production == other.production && dot == other.dot && follows == other.follows
-
-    override fun toString(): String = buildString {
-        append(production.lhs.name)
-        append(" → ")
-        production.rhs.withIndex().forEach { (i, e) ->
-            if (i == dot) append(" •")
-            append(" $e")
-        }
-        if (production.rhs.size <= dot)
-            append(" •")
-    }
 }
 
 // Each state does its thing.
@@ -71,23 +67,7 @@ data class State(val id: Int, val basis: List<Config>, val extension: List<Confi
     internal var action: Action? = null
     // Two states are equal if their bases are equal.
     fun basisEquals(other: List<Config>): Boolean =
-        basis.size == other.size && basis.all { c -> other.any { it == c } }
-
-    override fun toString(): String = buildString {
-        appendLine("STATE $id")
-        basis.forEach { appendLine("- $it") }
-        extension.forEach { appendLine("  $it") }
-        when (val a = action) {
-            null -> appendLine("!!! ERROR: NO ACTION !!!")
-            is Accept -> appendLine("ACCEPT: ${a.nodeType} ${a.count}")
-            is Reduce -> appendLine("REDUCE: ${a.elementType} ${a.count}")
-            is Shift -> appendLine("SHIFT: ${a.shifts.toList().joinToString(", ") { "${it.first} → ${it.second.id}" }}")
-            is Resolve -> appendLine(
-                "RESOLVE: REDUCE: ${a.reduceTo} ${a.count} [${a.reduceTypes.joinToString(", ")}], SHIFT: ${
-                a.shifts.toList().joinToString(", ") { "${it.first} → ${it.second.id}" }
-            }")
-        }
-    }
+        basis.size == other.size && basis.all { c -> other.any { it equalsALL c } }
 }
 
 class Parser(val states: List<State>, val start: SyntaxElementType, val end: SyntaxElementType)
@@ -118,7 +98,7 @@ fun generateParser(grammar: List<Production>): Parser {
             configs.forEach { config ->
                 grammar.forEach { p ->
                     if (p.lhs == config.dotted) {
-                        val c = Config(p)
+                        val c = Config(p, config.follow)
                         if (!extension.contains(c) && !basis.contains(c) && !ext.contains(c))
                             ext.add(c)
                     }
@@ -174,15 +154,31 @@ data class PTNode(val syntaxElement: SyntaxElement, val children: List<PTNode> =
 
 private data class ParseState(val state: State, val node: PTNode)
 
+val Config.toString: String
+    get() = buildString {
+        append(production.lhs.name)
+        append(" → ")
+        production.rhs.withIndex().forEach { (i, e) ->
+            if (i == dot) append(" •")
+            append(" $e")
+        }
+        if (production.rhs.size <= dot)
+            append(" •")
+    }
 val State.show: String
     get() = buildString {
         appendLine("STATE $id")
         basis.forEach { appendLine("- $it") }
         extension.forEach { appendLine("  $it") }
-//        when (val a = action) {
-//            null -> appendLine("!!! ERROR: NO ACTION !!!")
-//            is Accept -> appendLine("ACCEPT: ${a.nodeType} ${a.count}")
-//            is Reduce -> appendLine("REDUCE: ${a.nodeType} ${a.count}")
-//            is Shift -> appendLine("SHIFT: ${a.shifts.toList().joinToString(", ") { "${it.first} → ${it.second.id}" }}")
-//        }
+        when (val a = action) {
+            null -> appendLine("!!! ERROR: NO ACTION !!!")
+            is Accept -> appendLine("ACCEPT: ${a.nodeType} ${a.count}")
+            is Reduce -> appendLine("REDUCE: ${a.elementType} ${a.count}")
+            is Shift -> appendLine("SHIFT: ${a.shifts.toList().joinToString(", ") { "${it.first} → ${it.second.id}" }}")
+            is Resolve -> appendLine(
+                "RESOLVE: REDUCE: ${a.reduceTo} ${a.count} [${a.reduceTypes.joinToString(", ")}], SHIFT: ${
+                    a.shifts.toList().joinToString(", ") { "${it.first} → ${it.second.id}" }
+                }")
+        }
     }
+
