@@ -15,33 +15,33 @@ open class NonTerminal(name: String? = null) : SyntaxElementType(name) {
 
 data class SyntaxElement(val type: SyntaxElementType, val text: String? = null)
 
-data class Production(val lhs: SyntaxElementType, val rhs: List<SyntaxElementType>) {
+data class Production(val lhs: NonTerminal, val rhs: List<SyntaxElementType>) {
     override fun toString(): String = "$lhs → ${rhs.joinToString(" ")}"
 }
 
 // Syntactical convenience when defining productions.
-operator fun SyntaxElementType.invoke(vararg lhs: SyntaxElementType): Production =
-    Production(this, lhs.asList())
+operator fun NonTerminal.invoke(vararg rhs: SyntaxElementType): Production =
+    Production(this, rhs.asList())
 
-class Config private constructor(val production: Production, initFollow: Set<NonTerminal>, val dot: Int) {
+class Config private constructor(val production: Production, initFollow: Set<Terminal>, val dot: Int) {
     constructor(production: Production) : this(production, emptySet(), 0)
-    constructor(production: Production, initFollow: Set<NonTerminal>) : this(production, initFollow, 0)
+    constructor(production: Production, initFollow: Set<Terminal>) : this(production, initFollow, 0)
     // When it goes off the end we have a reduction.
     val dotted = if (dot < production.rhs.size) production.rhs[dot] else null
     val follows = initFollow.toMutableSet()
     fun bump() = Config(production, follows, dot = dot + 1)
     // The terminal after the dot
-    val follow =
-        if (dot >= production.rhs.size) emptySet()
+    val follow: Set<Terminal> =
+        if (dot + 1 >= production.rhs.size) emptySet()
         else when (val n = production.rhs[dot + 1]) {
-            is Terminal -> emptySet()
-            is NonTerminal -> setOf(n)
+            is Terminal -> setOf(n)
+            is NonTerminal -> emptySet()
         }
     // For finding lookaheads to merge.
     infix fun equalsProd(other: Config): Boolean =
         production == other.production && dot == other.dot
     // For finding identical bases.
-    infix fun equalsALL(other: Config): Boolean =
+    infix fun equalsAll(other: Config): Boolean =
         production == other.production && dot == other.dot && follows == other.follows
 }
 
@@ -67,7 +67,7 @@ data class State(val id: Int, val basis: List<Config>, val extension: List<Confi
     internal var action: Action? = null
     // Two states are equal if their bases are equal.
     fun basisEquals(other: List<Config>): Boolean =
-        basis.size == other.size && basis.all { c -> other.any { it equalsALL c } }
+        basis.size == other.size && basis.all { c -> other.any { it equalsAll c } }
 }
 
 class Parser(val states: List<State>, val start: SyntaxElementType, val end: SyntaxElementType)
@@ -92,58 +92,75 @@ fun generateParser(grammar: List<Production>): Parser {
     // Compute the closure on the basis configs.
     fun runState(basis: List<Config>): State {
         require(states.none { it.basisEquals(basis) })
-        val extension = mutableListOf<Config>()
+        // Calculate the closure of the basis config(s).
+        val closure = mutableListOf<Config>()
+        // Closes on the last group of configs to be added to the closure.
         tailrec fun extend(configs: List<Config>) {
+            // The next group of configs to add to the closure.
             val ext = mutableListOf<Config>()
             configs.forEach { config ->
                 grammar.forEach { p ->
-                    if (p.lhs == config.dotted) {
-                        val c = Config(p, config.follow)
-                        if (!extension.contains(c) && !basis.contains(c) && !ext.contains(c))
-                            ext.add(c)
+                    // Pick the productions whose LHS matches the dot.
+                    if (config.dotted?.terminal == false && p.lhs == config.dotted) {
+                        val e = Config(p, config.follow + config.follows)
+                        var merged = false
+                        // If an existing config in has the same production and dot we
+                        // merge the follows sets.
+                        for (c in (basis + closure + ext)) {
+                            if (c.equalsProd(e)) {
+                                merged = true
+                                c.follows += e.follows
+                                break
+                            }
+                        }
+                        if (!merged)
+                            ext.add(e)
                     }
                 }
             }
             if (ext.isNotEmpty()) {
-                extension.addAll(ext)
+                closure.addAll(ext)
                 extend(ext)
             }
         }
         extend(basis)
-        val state = State(states.size, basis, extension)
+
+        val state = State(states.size, basis, closure)
         states.add(state)
         val reductions = mutableListOf<Config>()
         val shifts = mutableListOf<Pair<SyntaxElementType, Config>>()
-        (basis + extension).forEach { config ->
+        (basis + closure).forEach { config ->
             when (val dotted = config.dotted) {
                 null -> reductions.add(config)
                 else -> shifts.add(dotted to config)
             }
         }
-        // In the LR(0) regime, there must be one reduction XOR a positive number of shifts.
         require(reductions.isNotEmpty() or shifts.isNotEmpty()) { "Empty state: ${state.show}" }
-        require(reductions.isEmpty() xor shifts.isEmpty()) { "Shift-reduce conflict in ${state.show}" }
-        val action = if (reductions.isNotEmpty()) {
-            require(1 == reductions.size) { "Unique reduction required.${reductions.joinToString { "\n$it" }}" }
-            reductions.first().run {
-                if (production.rhs.last() == end)
-                    TODO() // Accept(production.lhs, production.rhs.size - 1)
-                else
-                    TODO() // Reduce(production.lhs, production.rhs.size)
-            }
-        } else if (shifts.isNotEmpty()) {
-            val transitions = mutableMapOf<SyntaxElementType, State>()
-            for ((symbol, configs) in shifts.groupBy { it.first }) {
-                val newBasis = configs.map { it.second.bump() }
-                val target = when (val t = states.find { it.basisEquals(newBasis) }) {
-                    null -> runState(newBasis)
-                    else -> t
-                }
-                transitions[symbol] = target
-            }
-            TODO() // Shift(transitions)
-        } else error("No shifts or reductions found in ${state.show}")
-        TODO() // state.action = action
+
+//        // In the LR(0) regime, there must be one reduction XOR a positive number of shifts.
+//        require(reductions.isNotEmpty() or shifts.isNotEmpty()) { "Empty state: ${state.show}" }
+//        require(reductions.isEmpty() xor shifts.isEmpty()) { "Shift-reduce conflict in ${state.show}" }
+//        val action = if (reductions.isNotEmpty()) {
+//            require(1 == reductions.size) { "Unique reduction required.${reductions.joinToString { "\n$it" }}" }
+//            reductions.first().run {
+//                if (production.rhs.last() == end)
+//                    TODO() // Accept(production.lhs, production.rhs.size - 1)
+//                else
+//                    TODO() // Reduce(production.lhs, production.rhs.size)
+//            }
+//        } else if (shifts.isNotEmpty()) {
+//            val transitions = mutableMapOf<SyntaxElementType, State>()
+//            for ((symbol, configs) in shifts.groupBy { it.first }) {
+//                val newBasis = configs.map { it.second.bump() }
+//                val target = when (val t = states.find { it.basisEquals(newBasis) }) {
+//                    null -> runState(newBasis)
+//                    else -> t
+//                }
+//                transitions[symbol] = target
+//            }
+//            TODO() // Shift(transitions)
+//        } else error("No shifts or reductions found in ${state.show}")
+//        TODO() // state.action = action
         return state
     }
     runState(listOf(Config(state0)))
@@ -154,7 +171,7 @@ data class PTNode(val syntaxElement: SyntaxElement, val children: List<PTNode> =
 
 private data class ParseState(val state: State, val node: PTNode)
 
-val Config.toString: String
+val Config.show: String
     get() = buildString {
         append(production.lhs.name)
         append(" → ")
@@ -164,12 +181,13 @@ val Config.toString: String
         }
         if (production.rhs.size <= dot)
             append(" •")
+        append("  ${follows.size}: ${follows.joinToString(" ") }")
     }
 val State.show: String
     get() = buildString {
         appendLine("STATE $id")
-        basis.forEach { appendLine("- $it") }
-        extension.forEach { appendLine("  $it") }
+        basis.forEach { appendLine("- ${it.show}") }
+        extension.forEach { appendLine("  ${it.show}") }
         when (val a = action) {
             null -> appendLine("!!! ERROR: NO ACTION !!!")
             is Accept -> appendLine("ACCEPT: ${a.nodeType} ${a.count}")

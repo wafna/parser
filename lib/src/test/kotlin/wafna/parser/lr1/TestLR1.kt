@@ -8,6 +8,8 @@ private operator fun SyntaxElementType.invoke(text: String? = null): SyntaxEleme
 class TestLR1 {
     @Test
     fun `test LR(1)`() {
+        val parser = generateParser(grammar)
+        parser.states.forEach { print(it.show) }
     }
 
     private companion object {
@@ -42,7 +44,7 @@ class TestLR1 {
             TProd(LParen, Expr, RParen)
         ).apply {
             println("--- Grammar")
-            forEach { println(it.toString() ) }
+            forEach { println(it.toString()) }
         }
     }
 }
