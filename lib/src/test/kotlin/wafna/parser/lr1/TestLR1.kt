@@ -9,7 +9,7 @@ class TestLR1 {
     @Test
     fun `test LR(1)`() {
         val parser = generateParser(grammar)
-        parser.states.forEach { print(it.show) }
+        parser.states.forEach { print("--- "); print(it.show) }
     }
 
     private companion object {

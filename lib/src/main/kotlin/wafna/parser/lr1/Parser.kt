@@ -45,20 +45,19 @@ class Config private constructor(val production: Production, initFollow: Set<Ter
         production == other.production && dot == other.dot && follows == other.follows
 }
 
+data class Reduction(val to: NonTerminal, val count: Int)
+
 // Each state does its thing.
 sealed interface Action
-// Our work is done, here.
-class Accept(val nodeType: SyntaxElementType, val count: Int) : Action
+class Accept(val count: Int) : Action
 // Attempt to shift the next input.
-class Shift(val shifts: Map<SyntaxElementType, State>) : Action
+class Shift(val transitions: Map<SyntaxElementType, State>) : Action
 // Reduce the stack.
-class Reduce(val elementType: SyntaxElementType, val count: Int) : Action
+class Reduce(val reductions: Map<Terminal, Reduction>) : Action
 // Conflict; peek the next input and reduce on a match else shift.
 class Resolve(
-    val reduceTypes: List<Terminal>,
-    val reduceTo: SyntaxElementType,
-    val count: Int,
-    val shifts: Map<SyntaxElementType, State>
+    val reductions: Map<Terminal, Reduction>,
+    val transitions: Map<SyntaxElementType, State>
 ) : Action
 
 // The state's basis is the set of configs that transitioned to it.
@@ -76,7 +75,8 @@ class Parser(val states: List<State>, val start: SyntaxElementType, val end: Syn
 // These fragments must appear nowhere else.
 fun generateParser(grammar: List<Production>): Parser {
     val state0 = grammar.first()
-    // The LHS and last RHS of the augmenting production define the start and end symbols.
+    // The LHS and last element of the RHS of the augmenting production define the start and end symbols.
+    // This is the purpose of the augmenting production.
     val (start, end) = state0.lhs to state0.rhs.reversed().first()
     require(state0.rhs.reversed().drop(1).none { it == start || it == end }) {
         "The $start and $end fragments must not appear in the middle of the start production."
@@ -127,40 +127,55 @@ fun generateParser(grammar: List<Production>): Parser {
 
         val state = State(states.size, basis, closure)
         states.add(state)
-        val reductions = mutableListOf<Config>()
+        val reduces = mutableListOf<Config>()
         val shifts = mutableListOf<Pair<SyntaxElementType, Config>>()
         (basis + closure).forEach { config ->
             when (val dotted = config.dotted) {
-                null -> reductions.add(config)
+                null -> reduces.add(config)
                 else -> shifts.add(dotted to config)
             }
         }
-        require(reductions.isNotEmpty() or shifts.isNotEmpty()) { "Empty state: ${state.show}" }
+        fun transitions() = mutableMapOf<SyntaxElementType, State>().also { transitions ->
+            for ((symbol, configs) in shifts.groupBy { it.first }) {
+                require(!transitions.contains(symbol)) { "Shift conflict on $symbol in ${state.show}" }
+                val newBasis = configs.map { it.second.bump() }
+                val target = when (val t = states.find { it.basisEquals(newBasis) }) {
+                    null -> runState(newBasis)
+                    else -> t
+                }
+                transitions[symbol] = target
+            }
+        }
 
-//        // In the LR(0) regime, there must be one reduction XOR a positive number of shifts.
-//        require(reductions.isNotEmpty() or shifts.isNotEmpty()) { "Empty state: ${state.show}" }
-//        require(reductions.isEmpty() xor shifts.isEmpty()) { "Shift-reduce conflict in ${state.show}" }
-//        val action = if (reductions.isNotEmpty()) {
-//            require(1 == reductions.size) { "Unique reduction required.${reductions.joinToString { "\n$it" }}" }
-//            reductions.first().run {
-//                if (production.rhs.last() == end)
-//                    TODO() // Accept(production.lhs, production.rhs.size - 1)
-//                else
-//                    TODO() // Reduce(production.lhs, production.rhs.size)
-//            }
-//        } else if (shifts.isNotEmpty()) {
-//            val transitions = mutableMapOf<SyntaxElementType, State>()
-//            for ((symbol, configs) in shifts.groupBy { it.first }) {
-//                val newBasis = configs.map { it.second.bump() }
-//                val target = when (val t = states.find { it.basisEquals(newBasis) }) {
-//                    null -> runState(newBasis)
-//                    else -> t
-//                }
-//                transitions[symbol] = target
-//            }
-//            TODO() // Shift(transitions)
-//        } else error("No shifts or reductions found in ${state.show}")
-//        TODO() // state.action = action
+        fun reductions() = mutableMapOf<Terminal, Reduction>().also { reductions ->
+            for (config in reduces) {
+                for (f in config.follows) {
+                    if (reductions.contains(f)) {
+                        error("Reduce conflict on $f in ${state.show}")
+                    } else {
+                        reductions[f] = Reduction(config.production.lhs, config.production.rhs.size)
+                    }
+                }
+            }
+        }
+
+        val action = when (shifts.isNotEmpty() to reduces.isNotEmpty()) {
+            true to false -> Shift(transitions())
+            false to true -> reductions().let {
+                if (it.isEmpty()) {
+                    // This should only happen if the augmenting production isn't satisfying the requirements
+                    // for the start and end elements.
+                    require(1 == basis.size && closure.isEmpty()) { "Double plus ungood." }
+                    val aug = basis.first()
+                    require(aug.production.lhs == start && aug.follows.isEmpty()) { "So, we're not reducing the augmenting production?"}
+                    Accept(aug.production.rhs.size)
+                } else Reduce(it)
+            }
+
+            true to true -> Resolve(reductions(), transitions())
+            else -> error("Empty state: ${state.show}")
+        }
+        state.action = action
         return state
     }
     runState(listOf(Config(state0)))
@@ -170,6 +185,8 @@ fun generateParser(grammar: List<Production>): Parser {
 data class PTNode(val syntaxElement: SyntaxElement, val children: List<PTNode> = emptyList())
 
 private data class ParseState(val state: State, val node: PTNode)
+
+
 
 val Config.show: String
     get() = buildString {
@@ -181,22 +198,24 @@ val Config.show: String
         }
         if (production.rhs.size <= dot)
             append(" •")
-        append("  ${follows.size}: ${follows.joinToString(" ") }")
+        append("  ::  ${if (follows.isEmpty()) "∅" else follows.joinToString(" ")}")
     }
 val State.show: String
     get() = buildString {
         appendLine("STATE $id")
-        basis.forEach { appendLine("- ${it.show}") }
+        basis.forEach { appendLine("> ${it.show}") }
         extension.forEach { appendLine("  ${it.show}") }
+        fun Map<Terminal, Reduction>.show(): String =
+            toList().joinToString(", ") { "${it.first} → (${it.second.to}, ${it.second.count})" }
+
+        fun Map<SyntaxElementType, State>.show(): String =
+            toList().joinToString(", ") { "${it.first} → ${it.second.id}" }
         when (val a = action) {
             null -> appendLine("!!! ERROR: NO ACTION !!!")
-            is Accept -> appendLine("ACCEPT: ${a.nodeType} ${a.count}")
-            is Reduce -> appendLine("REDUCE: ${a.elementType} ${a.count}")
-            is Shift -> appendLine("SHIFT: ${a.shifts.toList().joinToString(", ") { "${it.first} → ${it.second.id}" }}")
-            is Resolve -> appendLine(
-                "RESOLVE: REDUCE: ${a.reduceTo} ${a.count} [${a.reduceTypes.joinToString(", ")}], SHIFT: ${
-                    a.shifts.toList().joinToString(", ") { "${it.first} → ${it.second.id}" }
-                }")
+            is Accept -> appendLine("\tACCEPT: ${a.count}")
+            is Reduce -> appendLine("\tREDUCE: ${a.reductions.show()}")
+            is Shift -> appendLine("\tSHIFT: ${a.transitions.show()}")
+            is Resolve -> appendLine("\tRESOLVE:\n\tSHIFT: ${a.transitions.show()}\n\tREDUCE: ${a.reductions.show()}")
         }
     }
 
