@@ -41,17 +41,17 @@ internal class InputQueue(end: TokenType, val input: Iterator<TerminalToken>) {
 fun runParser(parser: Parser, input: Iterator<TerminalToken>): PTNode {
     val input = InputQueue(parser.end, input)
     // Initially, the parse stack has state 0 and the tree is empty.
-    val stack = Stack<State>().apply {
-        val state0 = parser.states.first()
+    val stack = Stack<ParseState>().apply {
+        val state0 = parser.parseStates.first()
         push(state0)
     }
     val tree = Stack<PTNode>()
 
-    fun doShift(shifts: Map<TokenType, State>, state: State) {
+    fun doShift(shifts: Map<TokenType, ParseState>, parseState: ParseState) {
         val pop = input.pop()
         when (val shift = shifts[pop.token.type]) {
             null ->
-                error("No shift found for ${pop.token.type} at ${state.show}")
+                error("No shift found for ${pop.token.type} at ${parseState.show}")
 
             else -> {
                 tree.push(pop)
@@ -60,11 +60,11 @@ fun runParser(parser: Parser, input: Iterator<TerminalToken>): PTNode {
         }
     }
 
-    fun doReduce(reductions: Map<Terminal, Reduction>, state: State) {
+    fun doReduce(reductions: Map<Terminal, Reduction>, parseState: ParseState) {
         val peek = input.peek()
         when (val reduction = reductions[peek.token.type]) {
             null ->
-                error("No reduction on $peek in ${state.show}")
+                error("No reduction on $peek in ${parseState.show}")
 
             else -> {
                 repeat(reduction.count) { stack.pop() }
@@ -114,7 +114,7 @@ val Config.show: String
             append(" •")
         append("  ::  ${if (follows.isEmpty()) "∅" else follows.joinToString(" ")}")
     }
-val State.show: String
+val ParseState.show: String
     get() = buildString {
         appendLine("STATE $id")
         basis.forEach { appendLine("> ${it.show}") }
@@ -122,7 +122,7 @@ val State.show: String
         fun Map<Terminal, Reduction>.show(): String =
             toList().joinToString(", ") { "${it.first} → (${it.second.to}, ${it.second.count})" }
 
-        fun Map<TokenType, State>.show(): String =
+        fun Map<TokenType, ParseState>.show(): String =
             toList().joinToString(", ") { "${it.first} → ${it.second.id}" }
         when (val a = action) {
             null -> {} // appendLine("\t<no actions>")

@@ -23,7 +23,7 @@ class TestParser {
         println("--- Grammar ELPT")
         grammarELPT.forEach { println(it.toString()) }
         val parser = generateParser(grammarELPT)
-        parser.states.forEach { print("--- "); print(it.show) }
+        parser.parseStates.forEach { print("--- "); print(it.show) }
         fun testInput(input: List<TerminalToken>) {
             val iterator = input.iterator()
             val actual = runParser(parser, iterator)

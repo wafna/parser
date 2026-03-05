@@ -30,18 +30,18 @@ data class Reduction(val to: NonTerminal, val count: Int)
 sealed interface Action
 class Accept(val count: Int) : Action
 // Attempt to shift the next input.
-class Shift(val shifts: Map<TokenType, State>) : Action
+class Shift(val shifts: Map<TokenType, ParseState>) : Action
 // Reduce the stack.
 class Reduce(val reductions: Map<Terminal, Reduction>) : Action
 // Conflict; peek the next input and reduce on a match else shift.
 class Resolve(
     val reductions: Map<Terminal, Reduction>,
-    val shifts: Map<TokenType, State>
+    val shifts: Map<TokenType, ParseState>
 ) : Action
 
 // The state's basis is the set of configs that transitioned to it.
 // The state's extension is the closure on the dotted elements from the basis configs.
-data class State(val id: Int, val basis: List<Config>, val extension: List<Config>) {
+data class ParseState(val id: Int, val basis: List<Config>, val extension: List<Config>) {
     internal var action: Action? = null
     // Two states are equal if their bases are equal.
     fun basisEquals(other: List<Config>): Boolean =
@@ -50,7 +50,7 @@ data class State(val id: Int, val basis: List<Config>, val extension: List<Confi
     override fun toString(): String = show
 }
 
-class Parser(val states: List<State>, val start: TokenType, val end: TokenType)
+class Parser(val parseStates: List<ParseState>, val start: TokenType, val end: TokenType)
 
 // The first production defines the start fragment at the LHS and the end fragment at the end of the RHS.
 // These fragments must appear nowhere else.
@@ -69,10 +69,10 @@ fun generateParser(grammar: List<Production>): Parser {
             }
         }
     }
-    val states = mutableListOf<State>()
+    val parseStates = mutableListOf<ParseState>()
     // Compute the closure on the basis configs.
-    fun runState(basis: List<Config>): State {
-        require(states.none { it.basisEquals(basis) })
+    fun runState(basis: List<Config>): ParseState {
+        require(parseStates.none { it.basisEquals(basis) })
         // Calculate the closure of the basis config(s).
         val closure = mutableListOf<Config>()
         // Closes on the last group of configs to be added to the closure.
@@ -106,8 +106,8 @@ fun generateParser(grammar: List<Production>): Parser {
         }
         extend(basis)
 
-        val state = State(states.size, basis, closure)
-        states.add(state)
+        val parseState = ParseState(parseStates.size, basis, closure)
+        parseStates.add(parseState)
         val reduces = mutableListOf<Config>()
         val shifts = mutableListOf<Pair<TokenType, Config>>()
         (basis + closure).forEach { config ->
@@ -116,11 +116,11 @@ fun generateParser(grammar: List<Production>): Parser {
                 else -> shifts.add(dotted to config)
             }
         }
-        fun transitions() = mutableMapOf<TokenType, State>().also { transitions ->
+        fun transitions() = mutableMapOf<TokenType, ParseState>().also { transitions ->
             for ((symbol, configs) in shifts.groupBy { it.first }) {
-                require(!transitions.contains(symbol)) { "Shift conflict on $symbol in ${state.show}" }
+                require(!transitions.contains(symbol)) { "Shift conflict on $symbol in ${parseState.show}" }
                 val newBasis = configs.map { it.second.bump() }
-                val target = when (val t = states.find { it.basisEquals(newBasis) }) {
+                val target = when (val t = parseStates.find { it.basisEquals(newBasis) }) {
                     null -> runState(newBasis)
                     else -> t
                 }
@@ -132,7 +132,7 @@ fun generateParser(grammar: List<Production>): Parser {
             for (config in reduces) {
                 for (f in config.follows) {
                     if (reductions.contains(f)) {
-                        error("Reduce conflict on $f in ${state.show}")
+                        error("Reduce conflict on $f in ${parseState.show}")
                     } else {
                         reductions[f] = Reduction(config.production.lhs, config.production.rhs.size)
                     }
@@ -154,11 +154,11 @@ fun generateParser(grammar: List<Production>): Parser {
             }
 
             true to true -> Resolve(reductions(), transitions())
-            else -> error("Empty state: ${state.show}")
+            else -> error("Empty state: ${parseState.show}")
         }
-        state.action = action
-        return state
+        parseState.action = action
+        return parseState
     }
     runState(listOf(Config(state0)))
-    return Parser(states, start, end)
+    return Parser(parseStates, start, end)
 }
