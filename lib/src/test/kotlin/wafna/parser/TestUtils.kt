@@ -7,6 +7,12 @@ fun <T> Iterator<T>.toList(): List<T> =
         }
     }
 
+fun Terminal.token(text: String): TerminalToken =
+    TerminalToken(this, text)
+
+val NonTerminal.token: NonTerminalToken
+    get() = NonTerminalToken(this)
+
 val Token.show: String
     get() = text ?: type.toString()
 

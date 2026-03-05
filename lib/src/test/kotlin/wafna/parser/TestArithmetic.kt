@@ -3,10 +3,11 @@ package wafna.parser
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-class TestParser {
+class TestArithmetic {
+
     @Test
-    fun `test ELP`() {
-        val parser = generateParser(grammarELP)
+    fun `test arithmetic`() {
+        val parser = generateParser(grammar)
 //        parser.states.forEach { print("--- "); print(it.show) }
         fun testInput(input: List<TerminalToken>) {
             val input = input.iterator()
@@ -16,24 +17,8 @@ class TestParser {
         }
         testInput(input = listOf(x, plus, y))
         testInput(input = listOf(x, plus, y, plus, z))
-        testInput(input = listOf(x, plus, lparen, y, plus, z, rparen))
-    }
-    @Test
-    fun `test ELPT`() {
-        println("--- Grammar ELPT")
-        grammarELPT.forEach { println(it.toString()) }
-        val parser = generateParser(grammarELPT)
-        parser.states.forEach { print("--- "); print(it.show) }
-        fun testInput(input: List<TerminalToken>) {
-            val iterator = input.iterator()
-            val actual = runParser(parser, iterator)
-            assertTrue(!iterator.hasNext(), "Remaining input: ${iterator.toList().joinToString()}")
-            println("INPUT: ${input.joinToString(" ") { it.show }}")
-            println("PARSE: ${actual.show}")
-        }
-        testInput(listOf(x, plus, y, times, z))
-        testInput(listOf(x, times, y, plus, z))
-        testInput(listOf(x, times, lparen, y, plus, z, rparen))
+        testInput(input = listOf(x, plus, lparen, y, plus, z, rparen, minus, w))
+        testInput(input = listOf(x, plus, lparen, y, plus, z, rparen, divide, w))
     }
 
     private companion object {
@@ -50,33 +35,32 @@ class TestParser {
         object LParen : Terminal("(")
         object RParen : Terminal(")")
         object Plus : Terminal("+")
+        object Minus : Terminal("-")
         object Times : Terminal("*")
+        object Divide : Terminal("/")
 
         // Terminal tokens.
         val lparen = LParen.token("(")
         val rparen = RParen.token(")")
         val plus = Plus.token("+")
+        val minus = Plus.token("-")
         val times = Times.token("*")
+        val divide = Times.token("/")
         val x = Id.token("x")
         val y = Id.token("y")
         val z = Id.token("z")
+        val w = Id.token("w")
 
-        val grammarELP = listOf(
+        val grammar = listOf(
             Start.produces(Expr, End),
             Expr.produces(Expr, Plus, TSum),
-            Expr.produces(TSum),
-            TSum.produces(Id),
-            TSum.produces(LParen, Expr, RParen)
-        )
-        val grammarELPT = listOf(
-            Start.produces(Expr, End),
-            Expr.produces(Expr, Plus, TSum),
+            Expr.produces(Expr, Minus, TSum),
             Expr.produces(TSum),
             TSum.produces(TSum, Times, TProd),
+            TSum.produces(TSum, Divide, TProd),
             TSum.produces(TProd),
             TProd.produces(Id),
             TProd.produces(LParen, Expr, RParen)
         )
     }
 }
-
