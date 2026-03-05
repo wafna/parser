@@ -47,7 +47,7 @@ class Resolve(
  * The state's basis is the set of configs that transitioned to it.
  * The state's extension is the closure on the dotted elements from the basis configs.
  */
-internal data class ParseConfigState(val id: Int, val basis: List<Config>, val extension: List<Config>) {
+private data class ParseConfigState(val id: Int, val basis: List<Config>, val extension: List<Config>) {
     internal var action: Action? = null
     // Two states are equal if their bases are equal.
     fun basisEquals(other: List<Config>): Boolean =
@@ -112,8 +112,7 @@ fun generateParser(grammar: List<Production>, config: ParserConfig = ParserConfi
                     if (config.dotted?.terminal == false && p.lhs == config.dotted) {
                         val e = Config(p, config.follow + config.follows)
                         var merged = false
-                        // If an existing config in has the same production and dot we
-                        // merge the follows sets.
+                        // If an existing config has the same production and dot we merge the follows sets.
                         for (c in (basis + closure + ext)) {
                             if (c.equalsProd(e)) {
                                 merged = true
@@ -194,7 +193,7 @@ fun generateParser(grammar: List<Production>, config: ParserConfig = ParserConfi
     return Parser(states, start, end as Terminal)
 }
 
-internal val ParseConfigState.show: String
+private val ParseConfigState.show: String
     get() = buildString {
         appendLine("STATE $id")
         basis.forEach { appendLine("> ${it.show}") }
