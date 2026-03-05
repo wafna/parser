@@ -17,8 +17,8 @@ class TestArithmetic {
         }
         testInput(input = listOf(x, plus, y))
         testInput(input = listOf(x, plus, y, plus, z))
-        testInput(input = listOf(x, plus, lparen, y, plus, z, rparen, minus, w))
-        testInput(input = listOf(x, plus, lparen, y, plus, z, rparen, divide, w))
+        testInput(input = listOf(x, divide, lparen, y, plus, z, rparen, minus, w))
+        testInput(input = listOf(x, plus, lparen, y, minus, z, rparen, times, w))
     }
 
     private companion object {

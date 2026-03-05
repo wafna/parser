@@ -47,18 +47,18 @@ interface ParseListener {
 }
 
 fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalToken>) {
-    val input = InputQueue(parser.end, input)
-    // Prime the pump.
-    val stack = Stack<Int>().apply {
-        val state0 = parser.parseStates.first()
-        push(state0.id)
-    }
-
-    // O(1) state lookup.
+    // State table.
     val states = parser.parseStates.associateBy { it.id }.run {
         Array(size) { getValue(it) }
     }
+    // Parse stack.
+    val stack = Stack<Int>()
+    // Prime the pump.
+    stack.push(states[0].id)
+    // Queue the input.
+    val input = InputQueue(parser.end, input)
 
+    // Operations.
     fun shift(shifts: Map<TokenType, Int>, state: ParseState) {
         val pop = input.pop()
         when (val shift = shifts[pop.type]) {
@@ -82,6 +82,7 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
         }
     }
 
+    // Run the machine.
     var accepted = false
     while (!accepted) {
         val state = states[stack.peek()]
