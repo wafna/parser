@@ -6,6 +6,8 @@ import kotlin.test.assertTrue
 class TestParser {
     @Test
     fun `test ELP`() {
+        println("--- Grammar ELP")
+        grammarELP.forEach { println(it.toString()) }
         val parser = generateParser(grammarELP)
 //        parser.states.forEach { print("--- "); print(it.show) }
         fun testInput(input: List<TerminalToken>) {
@@ -20,8 +22,8 @@ class TestParser {
     }
     @Test
     fun `test ELPT`() {
-        println("--- Grammar ELPT")
-        grammarELPT.forEach { println(it.toString()) }
+//        println("--- Grammar ELPT")
+//        grammarELPT.forEach { println(it.toString()) }
         val parser = generateParser(grammarELPT)
         parser.parseStates.forEach { print("--- "); print(it.show) }
         fun testInput(input: List<TerminalToken>) {
