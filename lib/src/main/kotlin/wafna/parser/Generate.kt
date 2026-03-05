@@ -56,22 +56,25 @@ private data class ParseConfigState(val id: Int, val basis: List<Config>, val ex
     override fun toString(): String = show
 }
 
+/**
+ * The form of the parse state that the parser runs.
+ */
 sealed class ParseState {
     abstract val id: Int
     abstract val action: Action
+
+    class Opt(
+        override val id: Int,
+        override val action: Action
+    ) : ParseState()
+
+    class Dbg(
+        override val id: Int,
+        override val action: Action,
+        val basis: List<Config>,
+        val extension: List<Config>
+    ) : ParseState()
 }
-
-data class ParseStateOpt(
-    override val id: Int,
-    override val action: Action
-) : ParseState()
-
-data class ParseStateDbg(
-    override val id: Int,
-    override val action: Action,
-    val basis: List<Config>,
-    val extension: List<Config>
-) : ParseState()
 
 class Parser(val parseStates: List<ParseState>, val start: NonTerminal, val end: Terminal)
 
@@ -166,7 +169,7 @@ fun generateParser(grammar: List<Production>, config: ParserConfig = ParserConfi
             }
         }
 
-        val action = when (shifts.isNotEmpty() to reduces.isNotEmpty()) {
+        parseState.action = when (shifts.isNotEmpty() to reduces.isNotEmpty()) {
             true to false -> Shift(transitions())
             false to true -> reductions().let {
                 if (it.isEmpty()) {
@@ -182,13 +185,12 @@ fun generateParser(grammar: List<Production>, config: ParserConfig = ParserConfi
             true to true -> Resolve(reductions(), transitions())
             else -> error("Empty state: ${parseState.show}")
         }
-        parseState.action = action
         return parseState
     }
     runState(listOf(Config(augmenter)))
     val states = when (config) {
-        ParserConfig.Dbg -> parseStates.map { ParseStateDbg(it.id, it.action!!, it.basis, it.extension) }
-        ParserConfig.Opt -> parseStates.map { ParseStateOpt(it.id, it.action!!) }
+        ParserConfig.Dbg -> parseStates.map { ParseState.Dbg(it.id, it.action!!, it.basis, it.extension) }
+        ParserConfig.Opt -> parseStates.map { ParseState.Opt(it.id, it.action!!) }
     }
     return Parser(states, start, end as Terminal)
 }

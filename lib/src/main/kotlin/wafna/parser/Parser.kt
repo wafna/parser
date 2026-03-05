@@ -59,7 +59,6 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
     val input = InputQueue(parser.end, input)
 
     // Operations.
-
     fun shift(shifts: Map<TokenType, Int>, state: ParseState) {
         val pop = input.pop()
         when (val shift = shifts[pop.type]) {
@@ -121,11 +120,11 @@ val Config.show: String
 
 val ParseState.show: String
     get() = when(this) {
-        is ParseStateDbg -> show
-        is ParseStateOpt -> show
+        is ParseState.Dbg -> show
+        is ParseState.Opt -> show
     }
 
-val ParseStateDbg.show: String
+val ParseState.Dbg.show: String
     get() = buildString {
         appendLine("STATE $id")
         basis.forEach { appendLine("> ${it.show}") }
@@ -143,7 +142,7 @@ val ParseStateDbg.show: String
         }
     }
 
-val ParseStateOpt.show: String
+val ParseState.Opt.show: String
     get() = buildString {
         appendLine("STATE $id")
         fun Map<Terminal, Reduction>.show(): String =
