@@ -21,6 +21,7 @@ class NonTerminalToken(override val type: TokenType) : Token() {
 
 /**
  * Pushback queue.
+ * Reductions push tokens back into the input stream.
  */
 internal class InputQueue(end: Terminal, val input: Iterator<TerminalToken>) {
     val eof = TerminalToken(end, "<EOF>")
@@ -40,10 +41,28 @@ internal class InputQueue(end: Terminal, val input: Iterator<TerminalToken>) {
     }
 }
 
-interface ParseListener {
-    fun shift(token: Token)
-    fun reduce(token: NonTerminal, count: Int)
-    fun accept()
+/**
+ * Consumes the actions of the parser.
+ */
+abstract class ParseListener {
+    // After a reduction the new node is pushed back to the input.
+    // This remembers to ignore it when it gets shifted back.
+    // Note: there are never two reductions in succession;
+    // the new symbol precipitates a shift to a new reducing state.
+    private var reduced = false
+    abstract fun shift(token: Token)
+    abstract fun reduce(token: NonTerminal, count: Int)
+    abstract fun accept()
+    internal fun shifted(token: Token) {
+        if (reduced) reduced = false
+        else shift(token)
+    }
+
+    internal fun reduced(token: NonTerminal, count: Int) {
+        require(!reduced) { "Successive reductions." }
+        reduced = true
+        reduce(token, count)
+    }
 }
 
 fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalToken>) {
@@ -64,7 +83,7 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
         when (val shift = shifts[pop.type]) {
             null -> error("No shift found for ${pop.type} at ${state.show}")
             else -> {
-                listener.shift(pop)
+                listener.shifted(pop)
                 stack.push(shift)
             }
         }
@@ -76,7 +95,7 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
             null -> error("No reduction on $peek in ${state.show}")
             else -> {
                 repeat(reduction.count) { stack.pop() }
-                listener.reduce(reduction.to, reduction.count)
+                listener.reduced(reduction.to, reduction.count)
                 input.push(NonTerminalToken(reduction.to))
             }
         }
@@ -119,7 +138,7 @@ val Config.show: String
     }
 
 val ParseState.show: String
-    get() = when(this) {
+    get() = when (this) {
         is ParseState.Dbg -> show
         is ParseState.Opt -> show
     }
