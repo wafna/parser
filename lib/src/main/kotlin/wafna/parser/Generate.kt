@@ -56,7 +56,22 @@ internal data class ParseConfigState(val id: Int, val basis: List<Config>, val e
     override fun toString(): String = show
 }
 
-data class ParseState(val id: Int, val action: Action, val configs: List<Config> = emptyList())
+sealed class ParseState {
+    abstract val id: Int
+    abstract val action: Action
+}
+
+data class ParseStateOpt(
+    override val id: Int,
+    override val action: Action
+) : ParseState()
+
+data class ParseStateDbg(
+    override val id: Int,
+    override val action: Action,
+    val basis: List<Config>,
+    val extension: List<Config>
+) : ParseState()
 
 class Parser(val parseStates: List<ParseState>, val start: NonTerminal, val end: Terminal)
 
@@ -173,8 +188,8 @@ fun generateParser(grammar: List<Production>, config: ParserConfig = ParserConfi
     }
     runState(listOf(Config(augmenter)))
     val states = when (config) {
-        ParserConfig.Dbg -> parseStates.map { ParseState(it.id, it.action!!, it.basis + it.extension) }
-        ParserConfig.Opt -> parseStates.map { ParseState(it.id, it.action!!) }
+        ParserConfig.Dbg -> parseStates.map { ParseStateDbg(it.id, it.action!!, it.basis, it.extension) }
+        ParserConfig.Opt -> parseStates.map { ParseStateOpt(it.id, it.action!!) }
     }
     return Parser(states, start, end as Terminal)
 }

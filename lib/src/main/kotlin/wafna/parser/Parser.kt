@@ -59,6 +59,7 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
     val input = InputQueue(parser.end, input)
 
     // Operations.
+
     fun shift(shifts: Map<TokenType, Int>, state: ParseState) {
         val pop = input.pop()
         when (val shift = shifts[pop.type]) {
@@ -119,9 +120,32 @@ val Config.show: String
     }
 
 val ParseState.show: String
+    get() = when(this) {
+        is ParseStateDbg -> show
+        is ParseStateOpt -> show
+    }
+
+val ParseStateDbg.show: String
     get() = buildString {
         appendLine("STATE $id")
-        configs.forEach { appendLine(it.show) }
+        basis.forEach { appendLine("> ${it.show}") }
+        extension.forEach { appendLine("  ${it.show}") }
+        fun Map<Terminal, Reduction>.show(): String =
+            toList().joinToString(", ") { "${it.first} → (${it.second.to}, ${it.second.count})" }
+
+        fun Map<TokenType, Int>.show(): String =
+            toList().joinToString(", ") { "${it.first} → ${it.second}" }
+        when (val a = action) {
+            is Accept -> appendLine("\tACCEPT: ${a.count}")
+            is Reduce -> appendLine("\tREDUCE: ${a.reductions.show()}")
+            is Shift -> appendLine("\tSHIFT: ${a.shifts.show()}")
+            is Resolve -> appendLine("\tRESOLVE:\n\tSHIFT: ${a.shifts.show()}\n\tREDUCE: ${a.reductions.show()}")
+        }
+    }
+
+val ParseStateOpt.show: String
+    get() = buildString {
+        appendLine("STATE $id")
         fun Map<Terminal, Reduction>.show(): String =
             toList().joinToString(", ") { "${it.first} → (${it.second.to}, ${it.second.count})" }
 
