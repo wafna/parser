@@ -47,7 +47,7 @@ internal class InputQueue(end: Terminal, val input: Iterator<TerminalToken>) {
 
 fun runParser(parser: Parser, input: Iterator<TerminalToken>): ParseNode {
     val input = InputQueue(parser.end, input)
-    // Initially, the parse stack has state 0 and the tree is empty.
+    // Prime the pump.
     val stack = Stack<Int>().apply {
         val state0 = parser.parseStates.first()
         push(state0.id)
@@ -55,8 +55,8 @@ fun runParser(parser: Parser, input: Iterator<TerminalToken>): ParseNode {
     val tree = Stack<ParseNode>()
 
     // O(1) state lookup.
-    val states = parser.parseStates.associateBy { it.id }.let { states ->
-        Array(states.size) { states.getValue(it) }
+    val states = parser.parseStates.associateBy { it.id }.run {
+        Array(size) { getValue(it) }
     }
 
     fun doShift(shifts: Map<TokenType, Int>, parseState: ParseState) {
@@ -87,7 +87,7 @@ fun runParser(parser: Parser, input: Iterator<TerminalToken>): ParseNode {
     }
 
     var accepted = false
-    tailrec fun next() {
+    while(!accepted) {
         val state = states[stack.peek()]
         when (val action = state.action) {
             is Shift -> doShift(action.shifts, state)
@@ -108,9 +108,7 @@ fun runParser(parser: Parser, input: Iterator<TerminalToken>): ParseNode {
                 }
             }
         }
-        if (!accepted) next()
     }
-    next()
     return tree.pop()
 }
 
