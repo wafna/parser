@@ -26,22 +26,28 @@ class Config private constructor(val production: Production, initFollow: Set<Ter
 
 data class Reduction(val to: NonTerminal, val count: Int)
 
-// Each state does its thing.
+/**
+ * Each state does one thing.
+ */
 sealed interface Action
+/** Accept the input. */
 class Accept(val count: Int) : Action
-// Attempt to shift the next input.
-class Shift(val shifts: Map<TokenType, ParseState>) : Action
-// Reduce the stack.
+/** Shift the next input. */
+class Shift(val shifts: Map<TokenType, Int>) : Action
+/** Reduce the stack. */
 class Reduce(val reductions: Map<Terminal, Reduction>) : Action
-// Conflict; peek the next input and reduce on a match else shift.
+/** Resolve a shift-reduce conflict. */
 class Resolve(
     val reductions: Map<Terminal, Reduction>,
-    val shifts: Map<TokenType, ParseState>
+    val shifts: Map<TokenType, Int>
 ) : Action
 
-// The state's basis is the set of configs that transitioned to it.
-// The state's extension is the closure on the dotted elements from the basis configs.
-data class ParseState(val id: Int, val basis: List<Config>, val extension: List<Config>) {
+/**
+ * This represents the state as we're building the parser.
+ * The state's basis is the set of configs that transitioned to it.
+ * The state's extension is the closure on the dotted elements from the basis configs.
+ */
+internal data class ParseConfigState(val id: Int, val basis: List<Config>, val extension: List<Config>) {
     internal var action: Action? = null
     // Two states are equal if their bases are equal.
     fun basisEquals(other: List<Config>): Boolean =
@@ -50,28 +56,34 @@ data class ParseState(val id: Int, val basis: List<Config>, val extension: List<
     override fun toString(): String = show
 }
 
-class Parser(val parseStates: List<ParseState>, val start: TokenType, val end: TokenType)
+data class ParseState(val id: Int, val action: Action, val configs: List<Config> = emptyList())
 
-// The first production defines the start fragment at the LHS and the end fragment at the end of the RHS.
-// These fragments must appear nowhere else.
-fun generateParser(grammar: List<Production>): Parser {
-    val state0 = grammar.first()
-    // The LHS and last element of the RHS of the augmenting production define the start and end symbols.
-    // This is the purpose of the augmenting production.
-    val (start, end) = state0.lhs to state0.rhs.reversed().first()
-    require(state0.rhs.reversed().drop(1).none { it == start || it == end }) {
-        "The $start and $end fragments must not appear in the middle of the start production."
+class Parser(val parseStates: List<ParseState>, val start: NonTerminal, val end: Terminal)
+
+enum class ParserConfig { Dbg, Opt }
+
+/**
+ * Builds an LR(1) state machine for the input grammar.
+ * The first production MUST be the augmenting production.
+ * The parser can be generated with (Dbg) or without (Opt) configuration info for debugging or space-saving, respectively.
+ */
+fun generateParser(grammar: List<Production>, config: ParserConfig = ParserConfig.Opt): Parser {
+    val augmenter = grammar.first()
+    // The LHS and last element of the RHS of the augmenting production define the start and end tokens.
+    val (start, end) = augmenter.lhs to augmenter.rhs.reversed().first()
+    require(augmenter.rhs.reversed().drop(1).none { it == start || it == end }) {
+        "The $start and $end tokens must not appear in the middle of the start production."
     }
     val grammar = grammar.drop(1).apply {
         filter { it.lhs == start || it.lhs == end || it.rhs.any { it == start || it == end } }.also { bad ->
             require(bad.isEmpty()) {
-                "The $start and $end fragments must not appear outside of the start production:${bad.joinToString { "\n$it" }}"
+                "The $start and $end tokens must not appear outside of the start production:${bad.joinToString { "\n$it" }}"
             }
         }
     }
-    val parseStates = mutableListOf<ParseState>()
+    val parseStates = mutableListOf<ParseConfigState>()
     // Compute the closure on the basis configs.
-    fun runState(basis: List<Config>): ParseState {
+    fun runState(basis: List<Config>): ParseConfigState {
         require(parseStates.none { it.basisEquals(basis) })
         // Calculate the closure of the basis config(s).
         val closure = mutableListOf<Config>()
@@ -80,7 +92,7 @@ fun generateParser(grammar: List<Production>): Parser {
             // The next group of configs to add to the closure.
             val ext = mutableListOf<Config>()
             configs.forEach { config ->
-                grammar.forEach { p  ->
+                grammar.forEach { p ->
                     // Pick the productions whose LHS matches the dot.
                     if (config.dotted?.terminal == false && p.lhs == config.dotted) {
                         val e = Config(p, config.follow + config.follows)
@@ -106,7 +118,7 @@ fun generateParser(grammar: List<Production>): Parser {
         }
         extend(basis)
 
-        val parseState = ParseState(parseStates.size, basis, closure)
+        val parseState = ParseConfigState(parseStates.size, basis, closure)
         parseStates.add(parseState)
         val reduces = mutableListOf<Config>()
         val shifts = mutableListOf<Pair<TokenType, Config>>()
@@ -116,7 +128,7 @@ fun generateParser(grammar: List<Production>): Parser {
                 else -> shifts.add(dotted to config)
             }
         }
-        fun transitions() = mutableMapOf<TokenType, ParseState>().also { transitions ->
+        fun transitions() = mutableMapOf<TokenType, Int>().also { transitions ->
             for ((symbol, configs) in shifts.groupBy { it.first }) {
                 require(!transitions.contains(symbol)) { "Shift conflict on $symbol in ${parseState.show}" }
                 val newBasis = configs.map { it.second.bump() }
@@ -124,7 +136,7 @@ fun generateParser(grammar: List<Production>): Parser {
                     null -> runState(newBasis)
                     else -> t
                 }
-                transitions[symbol] = target
+                transitions[symbol] = target.id
             }
         }
 
@@ -159,6 +171,31 @@ fun generateParser(grammar: List<Production>): Parser {
         parseState.action = action
         return parseState
     }
-    runState(listOf(Config(state0)))
-    return Parser(parseStates, start, end)
+    runState(listOf(Config(augmenter)))
+    val states = when (config) {
+        ParserConfig.Dbg -> parseStates.map { ParseState(it.id, it.action!!, it.basis + it.extension) }
+        ParserConfig.Opt -> parseStates.map { ParseState(it.id, it.action!!) }
+    }
+    return Parser(states, start, end as Terminal)
 }
+
+internal val ParseConfigState.show: String
+    get() = buildString {
+        appendLine("STATE $id")
+        basis.forEach { appendLine("> ${it.show}") }
+        extension.forEach { appendLine("  ${it.show}") }
+        fun Map<Terminal, Reduction>.show(): String =
+            toList().joinToString(", ") { "${it.first} → (${it.second.to}, ${it.second.count})" }
+
+        fun Map<TokenType, Int>.show(): String =
+            toList().joinToString(", ") { "${it.first} → ${it.second}" }
+        when (val a = action) {
+            null -> {} // appendLine("\t<no actions>")
+            is Accept -> appendLine("\tACCEPT: ${a.count}")
+            is Reduce -> appendLine("\tREDUCE: ${a.reductions.show()}")
+            is Shift -> appendLine("\tSHIFT: ${a.shifts.show()}")
+            is Resolve -> appendLine("\tRESOLVE:\n\tSHIFT: ${a.shifts.show()}\n\tREDUCE: ${a.reductions.show()}")
+        }
+    }
+
+

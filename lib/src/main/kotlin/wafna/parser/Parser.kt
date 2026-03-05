@@ -2,12 +2,15 @@ package wafna.parser
 
 import java.util.*
 
+/**
+ * The content of a parse node.
+ */
 abstract class Token {
     abstract val type: TokenType
     abstract val text: String?
 }
 
-class TerminalToken(override val type: TokenType, override val text: String) : Token() {
+class TerminalToken(override val type: Terminal, override val text: String) : Token() {
     override fun toString(): String = text
 }
 
@@ -16,38 +19,47 @@ class NonTerminalToken(override val type: TokenType) : Token() {
     override fun toString(): String = "$type"
 }
 
-data class PTNode(val token: Token, val children: List<PTNode> = emptyList())
+/**
+ * Every shift and reduce produces a new parse node.
+ */
+data class ParseNode(val token: Token, val children: List<ParseNode> = emptyList())
 
-fun Token.node(): PTNode = PTNode(this)
-
-internal class InputQueue(end: TokenType, val input: Iterator<TerminalToken>) {
-    val eof = TerminalToken(end, "<EOF>").node()
-    private val pushback = Stack<PTNode>()
-    fun peek(): PTNode =
+/**
+ * Pushback queue.
+ */
+internal class InputQueue(end: Terminal, val input: Iterator<TerminalToken>) {
+    val eof = ParseNode(TerminalToken(end, "<EOF>"))
+    private val pushback = Stack<ParseNode>()
+    fun peek(): ParseNode =
         if (pushback.isNotEmpty()) pushback.peek()
         else if (!input.hasNext()) eof
-        else input.next().node().also { pushback.push(it) }
+        else ParseNode(input.next()).also { pushback.push(it) }
 
-    fun pop(): PTNode =
+    fun pop(): ParseNode =
         if (pushback.isNotEmpty()) pushback.pop()
         else if (!input.hasNext()) eof
-        else input.next().node()
+        else ParseNode(input.next())
 
-    fun push(node: PTNode) {
+    fun push(node: ParseNode) {
         pushback.push(node)
     }
 }
 
-fun runParser(parser: Parser, input: Iterator<TerminalToken>): PTNode {
+fun runParser(parser: Parser, input: Iterator<TerminalToken>): ParseNode {
     val input = InputQueue(parser.end, input)
     // Initially, the parse stack has state 0 and the tree is empty.
-    val stack = Stack<ParseState>().apply {
+    val stack = Stack<Int>().apply {
         val state0 = parser.parseStates.first()
-        push(state0)
+        push(state0.id)
     }
-    val tree = Stack<PTNode>()
+    val tree = Stack<ParseNode>()
 
-    fun doShift(shifts: Map<TokenType, ParseState>, parseState: ParseState) {
+    // O(1) state lookup.
+    val states = parser.parseStates.associateBy { it.id }.let { states ->
+        Array(states.size) { states.getValue(it) }
+    }
+
+    fun doShift(shifts: Map<TokenType, Int>, parseState: ParseState) {
         val pop = input.pop()
         when (val shift = shifts[pop.token.type]) {
             null ->
@@ -68,16 +80,16 @@ fun runParser(parser: Parser, input: Iterator<TerminalToken>): PTNode {
 
             else -> {
                 repeat(reduction.count) { stack.pop() }
-                val ns = List(reduction.count) { tree.pop() }.reversed()
-                input.push(PTNode(NonTerminalToken(reduction.to), ns))
+                val children = List(reduction.count) { tree.pop() }.reversed()
+                input.push(ParseNode(NonTerminalToken(reduction.to), children))
             }
         }
     }
 
     var accepted = false
     tailrec fun next() {
-        val state = stack.peek()
-        when (val action = state.action!!) {
+        val state = states[stack.peek()]
+        when (val action = state.action) {
             is Shift -> doShift(action.shifts, state)
             is Reduce -> doReduce(action.reductions, state)
             is Resolve -> {
@@ -89,11 +101,11 @@ fun runParser(parser: Parser, input: Iterator<TerminalToken>): PTNode {
             }
 
             is Accept -> {
+                accepted = true
                 require(tree.size == 2)
                 tree.pop().also {
                     require(it.token.type == parser.end) { "Internal error." }
                 }
-                accepted = true
             }
         }
         if (!accepted) next()
@@ -105,7 +117,7 @@ fun runParser(parser: Parser, input: Iterator<TerminalToken>): PTNode {
 val Config.show: String
     get() = buildString {
         append(production.lhs.name)
-        append(" → ")
+        append(" →")
         production.rhs.withIndex().forEach { (i, e) ->
             if (i == dot) append(" •")
             append(" $e")
@@ -114,18 +126,17 @@ val Config.show: String
             append(" •")
         append("  ::  ${if (follows.isEmpty()) "∅" else follows.joinToString(" ")}")
     }
+
 val ParseState.show: String
     get() = buildString {
         appendLine("STATE $id")
-        basis.forEach { appendLine("> ${it.show}") }
-        extension.forEach { appendLine("  ${it.show}") }
+        configs.forEach { appendLine(it.show) }
         fun Map<Terminal, Reduction>.show(): String =
             toList().joinToString(", ") { "${it.first} → (${it.second.to}, ${it.second.count})" }
 
-        fun Map<TokenType, ParseState>.show(): String =
-            toList().joinToString(", ") { "${it.first} → ${it.second.id}" }
+        fun Map<TokenType, Int>.show(): String =
+            toList().joinToString(", ") { "${it.first} → ${it.second}" }
         when (val a = action) {
-            null -> {} // appendLine("\t<no actions>")
             is Accept -> appendLine("\tACCEPT: ${a.count}")
             is Reduce -> appendLine("\tREDUCE: ${a.reductions.show()}")
             is Shift -> appendLine("\tSHIFT: ${a.shifts.show()}")

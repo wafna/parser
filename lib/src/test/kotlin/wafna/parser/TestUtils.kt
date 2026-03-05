@@ -16,9 +16,9 @@ val NonTerminal.token: NonTerminalToken
 val Token.show: String
     get() = text ?: type.toString()
 
-val PTNode.show: String
+val ParseNode.show: String
     get() = buildString {
-        fun showNode(node: PTNode, indent: Int) {
+        fun showNode(node: ParseNode, indent: Int) {
             repeat(indent) { append("  ") }
             append(node.token.show)
             appendLine(" [${node.children.size}]")
