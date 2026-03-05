@@ -20,96 +20,88 @@ class NonTerminalToken(override val type: TokenType) : Token() {
 }
 
 /**
- * Every shift and reduce produces a new parse node.
- */
-data class ParseNode(val token: Token, val children: List<ParseNode> = emptyList())
-
-/**
  * Pushback queue.
  */
 internal class InputQueue(end: Terminal, val input: Iterator<TerminalToken>) {
-    val eof = ParseNode(TerminalToken(end, "<EOF>"))
-    private val pushback = Stack<ParseNode>()
-    fun peek(): ParseNode =
+    val eof = TerminalToken(end, "<EOF>")
+    private val pushback = Stack<Token>()
+    fun peek(): Token =
         if (pushback.isNotEmpty()) pushback.peek()
         else if (!input.hasNext()) eof
-        else ParseNode(input.next()).also { pushback.push(it) }
+        else input.next().also { pushback.push(it) }
 
-    fun pop(): ParseNode =
+    fun pop(): Token =
         if (pushback.isNotEmpty()) pushback.pop()
         else if (!input.hasNext()) eof
-        else ParseNode(input.next())
+        else input.next()
 
-    fun push(node: ParseNode) {
+    fun push(node: Token) {
         pushback.push(node)
     }
 }
 
-fun runParser(parser: Parser, input: Iterator<TerminalToken>): ParseNode {
+interface ParseListener {
+    fun shift(token: Token)
+    fun reduce(token: NonTerminal, count: Int)
+    fun accept()
+}
+
+fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalToken>) {
     val input = InputQueue(parser.end, input)
     // Prime the pump.
     val stack = Stack<Int>().apply {
         val state0 = parser.parseStates.first()
         push(state0.id)
     }
-    val tree = Stack<ParseNode>()
 
     // O(1) state lookup.
     val states = parser.parseStates.associateBy { it.id }.run {
         Array(size) { getValue(it) }
     }
 
-    fun doShift(shifts: Map<TokenType, Int>, parseState: ParseState) {
+    fun shift(shifts: Map<TokenType, Int>, state: ParseState) {
         val pop = input.pop()
-        when (val shift = shifts[pop.token.type]) {
-            null ->
-                error("No shift found for ${pop.token.type} at ${parseState.show}")
-
+        when (val shift = shifts[pop.type]) {
+            null -> error("No shift found for ${pop.type} at ${state.show}")
             else -> {
-                tree.push(pop)
+                listener.shift(pop)
                 stack.push(shift)
             }
         }
     }
 
-    fun doReduce(reductions: Map<Terminal, Reduction>, parseState: ParseState) {
+    fun reduce(reductions: Map<Terminal, Reduction>, state: ParseState) {
         val peek = input.peek()
-        when (val reduction = reductions[peek.token.type]) {
-            null ->
-                error("No reduction on $peek in ${parseState.show}")
-
+        when (val reduction = reductions[peek.type]) {
+            null -> error("No reduction on $peek in ${state.show}")
             else -> {
                 repeat(reduction.count) { stack.pop() }
-                val children = List(reduction.count) { tree.pop() }.reversed()
-                input.push(ParseNode(NonTerminalToken(reduction.to), children))
+                listener.reduce(reduction.to, reduction.count)
+                input.push(NonTerminalToken(reduction.to))
             }
         }
     }
 
     var accepted = false
-    while(!accepted) {
+    while (!accepted) {
         val state = states[stack.peek()]
         when (val action = state.action) {
-            is Shift -> doShift(action.shifts, state)
-            is Reduce -> doReduce(action.reductions, state)
+            is Shift -> shift(action.shifts, state)
+            is Reduce -> reduce(action.reductions, state)
             is Resolve -> {
                 val peek = input.peek()
-                if (action.reductions.contains(peek.token.type))
-                    doReduce(action.reductions, state)
+                if (action.reductions.contains(peek.type))
+                    reduce(action.reductions, state)
                 else
-                    doShift(action.shifts, state)
+                    shift(action.shifts, state)
             }
 
             is Accept -> {
                 accepted = true
-                require(tree.size == 2)
-                tree.pop().also {
-                    require(it.token.type == parser.end) { "Internal error." }
-                }
+                listener.accept()
             }
         }
     }
-    return tree.pop()
 }
 
 val Config.show: String

@@ -11,7 +11,7 @@ class TestArithmetic {
         parser.parseStates.forEach { print("--- "); print(it.show) }
         fun testInput(input: List<TerminalToken>) {
             val input = input.iterator()
-            val actual = runParser(parser, input)
+            val actual = parseToTree(parser, input)
             assertTrue(!input.hasNext(), "Remaining input: ${input.toList().joinToString()}")
             println(actual.show)
         }

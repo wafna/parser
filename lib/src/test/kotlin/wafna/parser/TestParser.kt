@@ -10,7 +10,7 @@ class TestParser {
 //        parser.states.forEach { print("--- "); print(it.show) }
         fun testInput(input: List<TerminalToken>) {
             val input = input.iterator()
-            val actual = runParser(parser, input)
+            val actual = parseToTree(parser, input)
             assertTrue(!input.hasNext(), "Remaining input: ${input.toList().joinToString()}")
             println(actual.show)
         }
@@ -26,7 +26,7 @@ class TestParser {
         parser.parseStates.forEach { print("--- "); print(it.show) }
         fun testInput(input: List<TerminalToken>) {
             val iterator = input.iterator()
-            val actual = runParser(parser, iterator)
+            val actual = parseToTree(parser, iterator)
             assertTrue(!iterator.hasNext(), "Remaining input: ${iterator.toList().joinToString()}")
             println("INPUT: ${input.joinToString(" ") { it.show }}")
             println("PARSE: ${actual.show}")
