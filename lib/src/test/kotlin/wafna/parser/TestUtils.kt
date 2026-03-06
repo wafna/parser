@@ -15,6 +15,9 @@ val Token.show: String
 
 data class ParseNode(val token: Token, val children: List<ParseNode> = emptyList())
 
+/**
+ * Creates a tree matching the generative structure of the grammar for the input.
+ */
 fun parseToTree(parser: Parser, input: Iterator<TerminalToken>): ParseNode {
     val tree = Stack<ParseNode>()
     val builder = object : ParseListener() {

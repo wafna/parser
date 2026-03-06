@@ -122,6 +122,7 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
             }
 
             is Accept -> {
+                println("ACCEPT")
                 accepted = true
                 listener.accept()
             }
@@ -159,10 +160,13 @@ val ParseState.Dbg.show: String
         fun Map<TokenType, Int>.show(): String =
             toList().joinToString(", ") { "${it.first} → ${it.second}" }
         when (val a = action) {
-            is Accept -> appendLine("\tACCEPT: ${a.count}")
+            is Accept -> appendLine("\tACCEPT")
             is Reduce -> appendLine("\tREDUCE: ${a.reductions.show()}")
             is Shift -> appendLine("\tSHIFT: ${a.shifts.show()}")
-            is Resolve -> appendLine("\tRESOLVE:\n\tSHIFT: ${a.shifts.show()}\n\tREDUCE: ${a.reductions.show()}")
+            is Resolve -> {
+                val conflicts = if (a.conflicts.isEmpty()) "" else a.conflicts.joinToString(" ")
+                appendLine("\tCONFLICTS: $conflicts\n\tSHIFT: ${a.shifts.show()}\n\tREDUCE: ${a.reductions.show()}")
+            }
         }
     }
 
@@ -175,10 +179,13 @@ val ParseState.Opt.show: String
         fun Map<TokenType, Int>.show(): String =
             toList().joinToString(", ") { "${it.first} → ${it.second}" }
         when (val a = action) {
-            is Accept -> appendLine("\tACCEPT: ${a.count}")
+            is Accept -> appendLine("\tACCEPT")
             is Reduce -> appendLine("\tREDUCE: ${a.reductions.show()}")
             is Shift -> appendLine("\tSHIFT: ${a.shifts.show()}")
-            is Resolve -> appendLine("\tRESOLVE:\n\tSHIFT: ${a.shifts.show()}\n\tREDUCE: ${a.reductions.show()}")
+            is Resolve -> {
+                val conflicts = if (a.conflicts.isEmpty()) "" else a.conflicts.joinToString(" ")
+                appendLine("\tCONFLICTS: $conflicts\n\t    SHIFT: ${a.shifts.show()}\n\t   REDUCE: ${a.reductions.show()}")
+            }
         }
     }
 

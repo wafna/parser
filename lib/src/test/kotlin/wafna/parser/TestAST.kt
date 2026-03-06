@@ -24,8 +24,8 @@ class TestAST {
         val parser = generateParser(grammar) {
             conflictMode = ConflictMode.Shift
         }
-//        println("--- States [${parser.states.size}]")
-//        parser.states.forEach { print("--- "); print(it.show) }
+        println("--- States [${parser.states.size}]")
+        parser.states.forEach { print("--- "); print(it.show) }
         fun run(vararg input: TerminalToken) {
             println("INPUT: ${input.joinToString(" ")}")
             val builder = TreeBuilder()

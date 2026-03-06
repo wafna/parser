@@ -31,7 +31,7 @@ data class Reduction(val to: NonTerminal, val count: Int)
  */
 sealed interface Action
 /** Accept the input. */
-class Accept(val count: Int) : Action
+class Accept() : Action
 /** Shift the next input. */
 class Shift(val shifts: Map<TokenType, Int>) : Action
 /** Reduce the stack. */
@@ -40,7 +40,9 @@ class Reduce(val reductions: Map<Terminal, Reduction>) : Action
 class Resolve(
     val reductions: Map<Terminal, Reduction>,
     val shifts: Map<TokenType, Int>
-) : Action
+) : Action {
+    val conflicts = reductions.keys intersect shifts.keys
+}
 
 /**
  * This represents the state as we're building the parser.
@@ -196,7 +198,7 @@ fun generateParser(grammar: List<Production>, configure: ParserGeneratorConfig.(
                     require(1 == basis.size && closure.isEmpty()) { "Double plus ungood." }
                     val aug = basis.first()
                     require(aug.production.lhs == start && aug.follows.isEmpty()) { "So, we're not reducing the augmenting production?" }
-                    Accept(aug.production.rhs.size)
+                    Accept()
                 } else Reduce(it)
             }
 
@@ -236,7 +238,7 @@ private val ParseConfigState.show: String
             toList().joinToString(", ") { "${it.first} → ${it.second}" }
         when (val a = action) {
             null -> {} // appendLine("\t<no actions>")
-            is Accept -> appendLine("\tACCEPT: ${a.count}")
+            is Accept -> appendLine("\tACCEPT")
             is Reduce -> appendLine("\tREDUCE: ${a.reductions.show()}")
             is Shift -> appendLine("\tSHIFT: ${a.shifts.show()}")
             is Resolve -> appendLine("\tRESOLVE:\n\tSHIFT: ${a.shifts.show()}\n\tREDUCE: ${a.reductions.show()}")
