@@ -1,5 +1,22 @@
 package wafna.parser
 
+import wafna.parser.arithmetic.End
+import wafna.parser.arithmetic.EOp
+import wafna.parser.arithmetic.EAtom
+import wafna.parser.arithmetic.EParens
+import wafna.parser.arithmetic.Id
+import wafna.parser.arithmetic.LParen
+import wafna.parser.arithmetic.Plus
+import wafna.parser.arithmetic.RParen
+import wafna.parser.arithmetic.Start
+import wafna.parser.arithmetic.Times
+import wafna.parser.arithmetic.lparen
+import wafna.parser.arithmetic.plus
+import wafna.parser.arithmetic.rparen
+import wafna.parser.arithmetic.times
+import wafna.parser.arithmetic.x
+import wafna.parser.arithmetic.y
+import wafna.parser.arithmetic.z
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -42,20 +59,20 @@ class TestParser {
 
     private companion object {
         val grammarELP = listOf(
-            Start.produces(Expr, End),
-            Expr.produces(Expr, Plus, Expr1),
-            Expr.produces(Expr1),
-            Expr1.produces(Id),
-            Expr1.produces(LParen, Expr, RParen)
+            Start.produces(EOp, End),
+            EOp.produces(EOp, Plus, EAtom),
+            EOp.produces(EAtom),
+            EAtom.produces(Id),
+            EAtom.produces(LParen, EOp, RParen)
         )
         val grammarELPT = listOf(
-            Start.produces(Expr, End),
-            Expr.produces(Expr, Plus, Expr1),
-            Expr.produces(Expr1),
-            Expr1.produces(Expr1, Times, Expr2),
-            Expr1.produces(Expr2),
-            Expr2.produces(Id),
-            Expr2.produces(LParen, Expr, RParen)
+            Start.produces(EOp, End),
+            EOp.produces(EOp, Plus, EAtom),
+            EOp.produces(EAtom),
+            EAtom.produces(EAtom, Times, EParens),
+            EAtom.produces(EParens),
+            EParens.produces(Id),
+            EParens.produces(LParen, EOp, RParen)
         )
     }
 }

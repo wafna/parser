@@ -16,7 +16,6 @@ class TerminalToken(override val type: Terminal, val text: String) : Token() {
 class NonTerminalToken(override val type: NonTerminal) : Token() {
     override fun toString(): String = type.toString()
 }
-
 /**
  * Pushback queue.
  * Reductions push tokens back into the input stream.
@@ -38,35 +37,52 @@ internal class InputQueue(end: Terminal, val input: Iterator<TerminalToken>) {
         pushback.push(node)
     }
 }
-
+/**
+ * For visibility into the parser.
+ */
+open class StateListener {
+    open fun shift(states: List<Int>, input: TokenType, shift: Int) {}
+    open fun reduce(states: List<Int>, input: TokenType, count: Int, tokenType: TokenType) {}
+    open fun accept(states: List<Int>) {}
+}
 /**
  * Consumes the actions of the parser.
  */
-abstract class ParserListener {
+abstract class ActionListener {
+    abstract fun shift(token: Token)
+    abstract fun reduce(token: NonTerminal, count: Int)
+    abstract fun accept()
     // After a reduction the new node is pushed back to the input.
     // This remembers to ignore it when it gets shifted back.
     // Note: there are never two reductions in succession;
     // the new symbol precipitates a shift to a new reducing state.
     private var reduced = false
-    abstract fun shift(token: Token)
-    abstract fun reduce(token: NonTerminal, count: Int)
-    abstract fun accept()
     internal fun shifted(token: Token) {
         if (reduced) reduced = false
         else shift(token)
     }
 
     internal fun reduced(token: NonTerminal, count: Int) {
-        require(!reduced) { "Successive reductions." }
+        require(!reduced)
         reduced = true
         reduce(token, count)
     }
-
-    open fun shiftAction(states: List<Int>, input: TokenType, shift: Int) {}
-    open fun reduceAction(states: List<Int>, input: TokenType, count: Int, tokenType: TokenType) {}
 }
 
-fun runParser(parser: Parser, listener: ParserListener, input: Iterator<TerminalToken>) {
+class RunConfig {
+    var stateListener = StateListener()
+}
+
+fun runParser(parser: Parser, listener: ActionListener, input: Iterator<TerminalToken>) =
+    runParser(parser, listener, input) { }
+
+fun runParser(
+    parser: Parser,
+    listener: ActionListener,
+    input: Iterator<TerminalToken>,
+    configure: RunConfig.() -> Unit
+) {
+    val config = RunConfig().apply { configure() }
     // State table.
     val states = parser.states.associateBy { it.id }.run {
         Array(size) { getValue(it) }
@@ -77,16 +93,15 @@ fun runParser(parser: Parser, listener: ParserListener, input: Iterator<Terminal
     stack.push(states[0].id)
     // Queue the input.
     val input = InputQueue(parser.end, input)
-
     // Operations.
     fun shift(shifts: Map<TokenType, Int>, state: ParseState) {
         val pop = input.pop()
         when (val shift = shifts[pop.type]) {
             null -> error("No shift found for ${pop.type} at ${state.show}")
             else -> {
-                listener.shiftAction(stack.toList(), pop.type, shift)
-                listener.shifted(pop)
+                config.stateListener.shift(stack.toList(), pop.type, shift)
                 stack.push(shift)
+                listener.shifted(pop)
             }
         }
     }
@@ -96,14 +111,13 @@ fun runParser(parser: Parser, listener: ParserListener, input: Iterator<Terminal
         when (val reduction = reductions[peek.type]) {
             null -> error("No reduction on $peek in ${state.show}")
             else -> {
-                listener.reduceAction(stack.toList(), peek.type, reduction.count, reduction.to)
+                config.stateListener.reduce(stack.toList(), peek.type, reduction.count, reduction.to)
                 repeat(reduction.count) { stack.pop() }
-                listener.reduced(reduction.to, reduction.count)
                 input.push(NonTerminalToken(reduction.to))
+                listener.reduced(reduction.to, reduction.count)
             }
         }
     }
-
     // Run the machine.
     var accepted = false
     while (!accepted) {
@@ -122,7 +136,7 @@ fun runParser(parser: Parser, listener: ParserListener, input: Iterator<Terminal
             }
 
             is Accept -> {
-                println("ACCEPT")
+                config.stateListener.accept(stack.toList())
                 accepted = true
                 listener.accept()
             }
@@ -142,13 +156,11 @@ val Config.show: String
             append(" •")
         append("  ::  ${if (follows.isEmpty()) "∅" else follows.joinToString(" ")}")
     }
-
 val ParseState.show: String
     get() = when (this) {
         is ParseState.Dbg -> show
         is ParseState.Opt -> show
     }
-
 val ParseState.Dbg.show: String
     get() = buildString {
         appendLine("STATE $id")
@@ -169,7 +181,6 @@ val ParseState.Dbg.show: String
             }
         }
     }
-
 val ParseState.Opt.show: String
     get() = buildString {
         appendLine("STATE $id")

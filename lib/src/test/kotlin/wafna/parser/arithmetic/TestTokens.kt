@@ -1,13 +1,17 @@
-package wafna.parser
+package wafna.parser.arithmetic
+
+import wafna.parser.NonTerminal
+import wafna.parser.Terminal
+import wafna.parser.token
 
 // Token Types
 //// Augmenting.
 object Start : NonTerminal("@")
 object End : Terminal("$")
 //// Non-terminals.
-object Expr : NonTerminal("E")
-object Expr1 : NonTerminal("E1")
-object Expr2 : NonTerminal("E2")
+object EOp : NonTerminal()
+object EAtom : NonTerminal() // id, literal, or parenthetical
+object EParens : NonTerminal()
 //// Terminals.
 object Id : Terminal("id")
 object LParen : Terminal("(")

@@ -1,7 +1,17 @@
 package wafna.parser
 
-import kotlin.test.Test
-import java.util.*
+import wafna.parser.arithmetic.Divide
+import wafna.parser.arithmetic.End
+import wafna.parser.arithmetic.EOp
+import wafna.parser.arithmetic.EAtom
+import wafna.parser.arithmetic.EParens
+import wafna.parser.arithmetic.Id
+import wafna.parser.arithmetic.LParen
+import wafna.parser.arithmetic.Minus
+import wafna.parser.arithmetic.Plus
+import wafna.parser.arithmetic.RParen
+import wafna.parser.arithmetic.Start
+import wafna.parser.arithmetic.Times
 
 // A very simple syntax tree.
 sealed interface PNode {
@@ -17,98 +27,45 @@ sealed interface PNode {
  * More of a demo than a test.
  */
 class TestAST {
-    @Test
-    fun `Test AST`() {
-        println("--- Grammar [${grammar.size}]")
-        grammar.forEach { println(it) }
-        val parser = generateParser(grammar) {
-            conflictMode = ConflictMode.Shift
-        }
-        //        println("--- States [${parser.states.size}]")
-        //        parser.states.forEach { print("--- "); print(it.show) }
-        fun run(vararg input: TerminalToken) {
-            println("INPUT: ${input.joinToString(" ")}")
-            val builder = TreeBuilder()
-            runParser(parser, builder, input.iterator())
-            println(builder.tree.peek().show)
-        }
-        run(x, plus, y, minus, z)
-        run(x, plus, lparen, y, minus, z, rparen)
-        run(lparen, x, plus, y, rparen, minus, z)
-        run(x, times, y, divide, z)
-        run(x, times, lparen, y, divide, z, rparen)
-        run(lparen, x, times, y, rparen, divide, z)
-
-        run(lparen, x, plus, y, rparen, times, z)
-    }
+//    @Test
+//    fun `Test AST`() {
+//        println("--- Grammar [${grammar.size}]")
+//        grammar.forEach { println(it) }
+//        val parser = generateParser(grammar) {
+//            conflictMode = ConflictMode.Shift
+//        }
+//        //        println("--- States [${parser.states.size}]")
+//        //        parser.states.forEach { print("--- "); print(it.show) }
+//        fun run(vararg input: TerminalToken) {
+//            println("INPUT: ${input.joinToString(" ")}")
+//            val builder = TreeBuilder()
+//            runParser(parser, builder, input.iterator())
+//            println(builder.tree.peek().show)
+//        }
+//        run(x, plus, y, minus, z)
+//        run(x, plus, lparen, y, minus, z, rparen)
+//        run(lparen, x, plus, y, rparen, minus, z)
+//        run(x, times, y, divide, z)
+//        run(x, times, lparen, y, divide, z, rparen)
+//        run(lparen, x, times, y, rparen, divide, z)
+//
+//        run(lparen, x, plus, y, rparen, times, z)
+//    }
 
     private companion object {
 
         val grammar = listOf(
-            Start.produces(Expr, End),
-            Expr.produces(Expr, Plus, Expr1),
-            Expr.produces(Expr, Minus, Expr1),
-            Expr.produces(Expr1),
-            Expr1.produces(Expr1, Times, Expr2),
-            Expr1.produces(Expr1, Divide, Expr2),
-            Expr1.produces(Expr2),
-            Expr2.produces(Id),
-            Expr2.produces(LParen, Expr, RParen)
+            Start.produces(EOp, End),
+            EOp.produces(EOp, Plus, EAtom),
+            EOp.produces(EOp, Minus, EAtom),
+            EOp.produces(EAtom),
+            EAtom.produces(EAtom, Times, EParens),
+            EAtom.produces(EAtom, Divide, EParens),
+            EAtom.produces(EParens),
+            EParens.produces(Id),
+            EParens.produces(LParen, EOp, RParen)
         )
 
-        class TreeBuilder : ParserListener() {
-            val tree = Stack<PNode>()
-            val ops = Stack<Token>()
-            override fun shift(token: Token) {
-                when (token.type) {
-                    Id -> tree.push(PNode.Id(token))
-                    Plus -> ops.push(token)
-                    Minus -> ops.push(token)
-                    Times -> ops.push(token)
-                    Divide -> ops.push(token)
-                    else -> {}
-                }
-            }
-
-            fun reduceOp(count: Int) {
-                if (count == 3) {
-                    val children = List(2) { tree.pop() }
-                    val op = ops.pop()
-                    val n = when (op.type) {
-                        Plus -> PNode.Plus(children[1], children[0])
-                        Minus -> PNode.Minus(children[1], children[0])
-                        Times -> PNode.Times(children[1], children[0])
-                        Divide -> PNode.Divide(children[1], children[0])
-                        else -> error(op.type.toString())
-                    }
-                    tree.push(n)
-                }
-            }
-
-            override fun reduce(token: NonTerminal, count: Int) {
-                when (token) {
-                    Expr -> reduceOp(count)
-                    Expr1 -> reduceOp(count)
-                    else -> {}
-                }
-            }
-
-            override fun accept() {
-                require(tree.size == 1) {
-                    "Tree ${tree.size}\n${List(tree.size) { i -> "[$i]\n${tree.pop().show}" }.joinToString("\n")}"
-                }
-            }
-
-//            override fun shiftAction(states: List<Int>, input: TokenType, shift: Int) {
-//                println("STACK  ${states.joinToString(", ")}")
-//                println("\tSHIFT  $input -> $shift")
-//            }
-//
-//            override fun reduceAction(states: List<Int>, input: TokenType, count: Int, tokenType: TokenType) {
-//                println("STACK  ${states.joinToString(", ")}")
-//                println("\tREDUCE  $input -> $tokenType $count")
-//            }
-        }
     }
 }
 
