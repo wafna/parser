@@ -76,16 +76,16 @@ sealed class ParseState {
     ) : ParseState()
 }
 
-class Parser(val parseStates: List<ParseState>, val start: NonTerminal, val end: Terminal)
+class Parser(val states: List<ParseState>, val start: NonTerminal, val end: Terminal)
 
-enum class ParserConfig { Dbg, Opt }
+enum class ConfigMode { Dbg, Opt }
 
 /**
  * Builds an LR(1) state machine for the input grammar.
  * The first production MUST be the augmenting production.
  * The parser can be generated with (Dbg) or without (Opt) configuration info for debugging or space-saving, respectively.
  */
-fun generateParser(grammar: List<Production>, config: ParserConfig = ParserConfig.Opt): Parser {
+fun generateParser(grammar: List<Production>, config: ConfigMode = ConfigMode.Opt): Parser {
     val augmenter = grammar.first()
     // The LHS and last element of the RHS of the augmenting production define the start and end tokens.
     val (start, end) = augmenter.lhs to augmenter.rhs.reversed().first()
@@ -189,8 +189,8 @@ fun generateParser(grammar: List<Production>, config: ParserConfig = ParserConfi
     }
     runState(listOf(Config(augmenter)))
     val states = when (config) {
-        ParserConfig.Dbg -> parseStates.map { ParseState.Dbg(it.id, it.action!!, it.basis, it.extension) }
-        ParserConfig.Opt -> parseStates.map { ParseState.Opt(it.id, it.action!!) }
+        ConfigMode.Dbg -> parseStates.map { ParseState.Dbg(it.id, it.action!!, it.basis, it.extension) }
+        ConfigMode.Opt -> parseStates.map { ParseState.Opt(it.id, it.action!!) }
     }
     return Parser(states, start, end as Terminal)
 }

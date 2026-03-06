@@ -67,7 +67,7 @@ abstract class ParseListener {
 
 fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalToken>) {
     // State table.
-    val states = parser.parseStates.associateBy { it.id }.run {
+    val states = parser.states.associateBy { it.id }.run {
         Array(size) { getValue(it) }
     }
     // Parse stack.

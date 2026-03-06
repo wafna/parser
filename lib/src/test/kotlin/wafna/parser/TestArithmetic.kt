@@ -7,8 +7,8 @@ class TestArithmetic {
 
     @Test
     fun `test arithmetic`() {
-        val parser = generateParser(grammar, ParserConfig.Dbg)
-        parser.parseStates.forEach { print("--- "); print(it.show) }
+        val parser = generateParser(grammar, ConfigMode.Dbg)
+        parser.states.forEach { print("--- "); print(it.show) }
         fun testInput(input: List<TerminalToken>) {
             val input = input.iterator()
             val actual = parseToTree(parser, input)
