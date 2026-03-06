@@ -16,7 +16,7 @@ class TerminalToken(override val type: Terminal, override val text: String) : To
 
 class NonTerminalToken(override val type: TokenType) : Token() {
     override val text = null
-    override fun toString(): String = "$type"
+    override fun toString(): String = type.toString()
 }
 
 /**

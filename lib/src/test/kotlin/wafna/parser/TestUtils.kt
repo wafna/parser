@@ -7,12 +7,6 @@ fun <T> Iterator<T>.toList(): List<T> = buildList { while (hasNext()) add(next()
 fun Terminal.token(text: String): TerminalToken =
     TerminalToken(this, text)
 
-val NonTerminal.token: NonTerminalToken
-    get() = NonTerminalToken(this)
-
-val Token.show: String
-    get() = text ?: type.toString()
-
 data class ParseNode(val token: Token, val children: List<ParseNode> = emptyList())
 
 /**
@@ -47,7 +41,7 @@ val ParseNode.show: String
     get() = buildString {
         fun showNode(node: ParseNode, indent: Int) {
             repeat(indent) { append("  ") }
-            append(node.token.show)
+            append(node.token.toString())
             appendLine(" [${node.children.size}]")
             node.children.forEach { showNode(it, indent + 1) }
         }

@@ -18,14 +18,14 @@ sealed interface PNode {
  */
 class TestAST {
     @Test
-    fun `--- Test AST`() {
+    fun `Test AST`() {
         println("--- Grammar [${grammar.size}]")
         grammar.forEach { println(it) }
         val parser = generateParser(grammar) {
             conflictMode = ConflictMode.Shift
         }
         //        println("--- States [${parser.states.size}]")
-//        parser.states.forEach { print("--- "); print(it.show) }
+        //        parser.states.forEach { print("--- "); print(it.show) }
         fun run(vararg input: TerminalToken) {
             println("INPUT: ${input.joinToString(" ")}")
             val builder = TreeBuilder()
@@ -43,33 +43,6 @@ class TestAST {
     }
 
     private companion object {
-        // Token Types
-        //// Augmenting.
-        object Start : NonTerminal("@")
-        object End : Terminal("$")
-        //// Non-terminals.
-        object Expr : NonTerminal("E")
-        object Expr1 : NonTerminal("E1")
-        object Expr2 : NonTerminal("E2")
-        //// Terminals.
-        object Id : Terminal("id")
-        object LParen : Terminal("(")
-        object RParen : Terminal(")")
-        object Plus : Terminal("+")
-        object Minus : Terminal("-")
-        object Times : Terminal("*")
-        object Divide : Terminal("/")
-
-        // Terminal tokens.
-        val lparen = LParen.token("(")
-        val rparen = RParen.token(")")
-        val plus = Plus.token("+")
-        val minus = Minus.token("-")
-        val times = Times.token("*")
-        val divide = Divide.token("/")
-        val x = Id.token("x")
-        val y = Id.token("y")
-        val z = Id.token("z")
 
         val grammar = listOf(
             Start.produces(Expr, End),
@@ -97,7 +70,7 @@ class TestAST {
                 }
             }
 
-            fun reduceOp(token: NonTerminal, count: Int) {
+            fun reduceOp(count: Int) {
                 if (count == 3) {
                     val children = List(2) { tree.pop() }
                     val op = ops.pop()
@@ -113,9 +86,9 @@ class TestAST {
             }
 
             override fun reduce(token: NonTerminal, count: Int) {
-                when (token.token.type) {
-                    Expr -> reduceOp(token, count)
-                    Expr1 -> reduceOp(token, count)
+                when (token) {
+                    Expr -> reduceOp(count)
+                    Expr1 -> reduceOp(count)
                     else -> {}
                 }
             }
@@ -126,15 +99,15 @@ class TestAST {
                 }
             }
 
-            override fun shiftAction(states: List<Int>, input: TokenType, shift: Int) {
-                println("STACK  ${states.joinToString(", ")}")
-                println("\tSHIFT  $input -> $shift")
-            }
-
-            override fun reduceAction(states: List<Int>, input: TokenType, count: Int, tokenType: TokenType) {
-                println("STACK  ${states.joinToString(", ")}")
-                println("\tREDUCE  $input -> $tokenType $count")
-            }
+//            override fun shiftAction(states: List<Int>, input: TokenType, shift: Int) {
+//                println("STACK  ${states.joinToString(", ")}")
+//                println("\tSHIFT  $input -> $shift")
+//            }
+//
+//            override fun reduceAction(states: List<Int>, input: TokenType, count: Int, tokenType: TokenType) {
+//                println("STACK  ${states.joinToString(", ")}")
+//                println("\tREDUCE  $input -> $tokenType $count")
+//            }
         }
     }
 }

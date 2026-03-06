@@ -24,45 +24,17 @@ class TestArithmetic {
     }
 
     private companion object {
-        // Token Types
-        //// Augmenting.
-        object Start : NonTerminal("@")
-        object End : Terminal("$")
-        //// Non-terminals.
-        object Expr : NonTerminal("E")
-        object TSum : NonTerminal("T")
-        object TProd : NonTerminal("P")
-        //// Terminals.
-        object Id : Terminal("id")
-        object LParen : Terminal("(")
-        object RParen : Terminal(")")
-        object Plus : Terminal("+")
-        object Minus : Terminal("-")
-        object Times : Terminal("*")
-        object Divide : Terminal("/")
-
-        // Terminal tokens.
-        val lparen = LParen.token("(")
-        val rparen = RParen.token(")")
-        val plus = Plus.token("+")
-        val minus = Plus.token("-")
-        val times = Times.token("*")
-        val divide = Times.token("/")
-        val x = Id.token("x")
-        val y = Id.token("y")
-        val z = Id.token("z")
-        val w = Id.token("w")
 
         val grammar = listOf(
             Start.produces(Expr, End),
-            Expr.produces(Expr, Plus, TSum),
-            Expr.produces(Expr, Minus, TSum),
-            Expr.produces(TSum),
-            TSum.produces(TSum, Times, TProd),
-            TSum.produces(TSum, Divide, TProd),
-            TSum.produces(TProd),
-            TProd.produces(Id),
-            TProd.produces(LParen, Expr, RParen)
+            Expr.produces(Expr, Plus, Expr1),
+            Expr.produces(Expr, Minus, Expr1),
+            Expr.produces(Expr1),
+            Expr1.produces(Expr1, Times, Expr2),
+            Expr1.produces(Expr1, Divide, Expr2),
+            Expr1.produces(Expr2),
+            Expr2.produces(Id),
+            Expr2.produces(LParen, Expr, RParen)
         )
     }
 }
