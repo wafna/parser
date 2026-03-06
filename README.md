@@ -3,10 +3,10 @@
 This is an embeddable library that generates LR(1) parse tables and runs the parser on provided input.
 The input is consumed as a stream (iterator) of tokens.
 
-## step 1: vocabulary
+## step 1: define a vocabulary
 
 The token types, i.e. the vocabulary, are defined in terms of terminals and non-terminals.
-Terminals are tokens produced in the input stream whereas non-terminals produce them
+Terminals are tokens produced in the input stream whereas non-terminals aggregate them
 (and other non-terminals) in the grammar.
 
 Here is an example for a simple grammar describing arithmetic with addition and multiplication.
@@ -27,7 +27,7 @@ object Times : Terminal("*")
 ```
 Each can take a name that will appear in error messages and debugging output.
 
-## step 2: grammar
+## step 2: define a grammar
 
 With the token types, above, we can now define the production rules (grammar) for our language.
 ```kotlin
