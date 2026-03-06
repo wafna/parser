@@ -117,7 +117,7 @@ val PNode.show: String
         fun show(node: PNode, indent: Int) {
             repeat(indent) { append("  ") }
             when (node) {
-                is PNode.Id -> appendLine(node.token.text)
+                is PNode.Id -> appendLine(node.token.toString())
                 is PNode.Plus -> {
                     appendLine("+")
                     show(node.left, indent + 1)

@@ -7,15 +7,13 @@ import java.util.*
  */
 abstract class Token {
     abstract val type: TokenType
-    abstract val text: String?
 }
 
-class TerminalToken(override val type: Terminal, override val text: String) : Token() {
+class TerminalToken(override val type: Terminal, val text: String) : Token() {
     override fun toString(): String = text
 }
 
 class NonTerminalToken(override val type: TokenType) : Token() {
-    override val text = null
     override fun toString(): String = type.toString()
 }
 
