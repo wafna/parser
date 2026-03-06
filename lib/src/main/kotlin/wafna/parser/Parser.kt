@@ -3,7 +3,7 @@ package wafna.parser
 import java.util.*
 
 /**
- * The content of a parse node.
+ * Reified vocabulary element.
  */
 abstract class Token {
     abstract val type: TokenType
@@ -13,7 +13,7 @@ class TerminalToken(override val type: Terminal, val text: String) : Token() {
     override fun toString(): String = text
 }
 
-class NonTerminalToken(override val type: TokenType) : Token() {
+class NonTerminalToken(override val type: NonTerminal) : Token() {
     override fun toString(): String = type.toString()
 }
 
