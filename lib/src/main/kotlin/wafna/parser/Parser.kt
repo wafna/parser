@@ -85,6 +85,7 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
             else -> {
                 listener.shifted(pop)
                 stack.push(shift)
+//                println("INPUT: ${pop.type} -> SHIFT $shift")
             }
         }
     }
@@ -97,6 +98,7 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
                 repeat(reduction.count) { stack.pop() }
                 listener.reduced(reduction.to, reduction.count)
                 input.push(NonTerminalToken(reduction.to))
+//                println("INPUT: ${peek.type} -> REDUCE ${reduction.count} ${reduction.to}")
             }
         }
     }
@@ -104,16 +106,19 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
     // Run the machine.
     var accepted = false
     while (!accepted) {
+//        println("STACK: ${stack.toList().joinToString(", ")}")
         val state = states[stack.peek()]
         when (val action = state.action) {
             is Shift -> shift(action.shifts, state)
             is Reduce -> reduce(action.reductions, state)
             is Resolve -> {
                 val peek = input.peek()
-                if (action.reductions.contains(peek.type))
-                    reduce(action.reductions, state)
-                else
-                    shift(action.shifts, state)
+                with(action) {
+                    if (reductions.contains(peek.type)
+                        && !(parser.conflictMode == ConflictMode.Shift && shifts.keys.contains(peek.type))
+                    ) reduce(reductions, state)
+                    else shift(shifts, state)
+                }
             }
 
             is Accept -> {

@@ -7,7 +7,9 @@ class TestArithmetic {
 
     @Test
     fun `test arithmetic`() {
-        val parser = generateParser(grammar, ConfigMode.Dbg)
+        val parser = generateParser(grammar) {
+            conflictMode = ConflictMode.Shift
+        }
         parser.states.forEach { print("--- "); print(it.show) }
         fun testInput(input: List<TerminalToken>) {
             val input = input.iterator()

@@ -21,23 +21,25 @@ class TestAST {
     fun `--- Test AST`() {
         println("--- Grammar [${grammar.size}]")
         grammar.forEach { println(it) }
-        val parser = generateParser(grammar, ConfigMode.Dbg)
-        println("--- States [${parser.states.size}]")
-        parser.states.forEach { print("--- "); print(it.show) }
+        val parser = generateParser(grammar) {
+            conflictMode = ConflictMode.Shift
+        }
+//        println("--- States [${parser.states.size}]")
+//        parser.states.forEach { print("--- "); print(it.show) }
         fun run(vararg input: TerminalToken) {
             println("INPUT: ${input.joinToString(" ")}")
             val builder = TreeBuilder()
             runParser(parser, builder, input.iterator())
             println(builder.tree.peek().show)
         }
-//        run(x, plus, y, minus, z)
-//        run(x, plus, lparen, y, minus, z, rparen)
-//        run(lparen, x, plus, y, rparen, minus, z)
-//        run(x, times, y, divide, z)
+        run(x, plus, y, minus, z)
+        run(x, plus, lparen, y, minus, z, rparen)
+        run(lparen, x, plus, y, rparen, minus, z)
+        run(x, times, y, divide, z)
         run(x, times, lparen, y, divide, z, rparen)
-//        run(lparen, x, times, y, rparen, divide, z)
+        run(lparen, x, times, y, rparen, divide, z)
 
-//        run(lparen, x, plus, y, rparen, times, z)
+        run(lparen, x, plus, y, rparen, times, z)
     }
 
     private companion object {
@@ -47,8 +49,8 @@ class TestAST {
         object End : Terminal("$")
         //// Non-terminals.
         object Expr : NonTerminal("E")
-        object Sum : NonTerminal("S")
-        object Prod : NonTerminal("P")
+        object Expr1 : NonTerminal("E1")
+        object Expr2 : NonTerminal("E2")
         //// Terminals.
         object Id : Terminal("id")
         object LParen : Terminal("(")
@@ -71,14 +73,14 @@ class TestAST {
 
         val grammar = listOf(
             Start.produces(Expr, End),
-            Expr.produces(Expr, Plus, Sum),
-            Expr.produces(Expr, Minus, Sum),
-            Expr.produces(Sum),
-            Sum.produces(Sum, Times, Prod),
-            Sum.produces(Sum, Divide, Prod),
-            Sum.produces(Prod),
-            Prod.produces(Id),
-            Prod.produces(LParen, Expr, RParen)
+            Expr.produces(Expr, Plus, Expr1),
+            Expr.produces(Expr, Minus, Expr1),
+            Expr.produces(Expr1),
+            Expr1.produces(Expr1, Times, Expr2),
+            Expr1.produces(Expr1, Divide, Expr2),
+            Expr1.produces(Expr2),
+            Expr2.produces(Id),
+            Expr2.produces(LParen, Expr, RParen)
         )
 
         class TreeBuilder : ParseListener() {
@@ -113,7 +115,7 @@ class TestAST {
             override fun reduce(token: NonTerminal, count: Int) {
                 when (token.token.type) {
                     Expr -> reduceOp(token, count)
-                    Sum -> reduceOp(token, count)
+                    Expr1 -> reduceOp(token, count)
                     else -> {}
                 }
             }

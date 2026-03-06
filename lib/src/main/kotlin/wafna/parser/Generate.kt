@@ -76,16 +76,34 @@ sealed class ParseState {
     ) : ParseState()
 }
 
-class Parser(val states: List<ParseState>, val start: NonTerminal, val end: Terminal)
+class Parser(val states: List<ParseState>, val start: NonTerminal, val end: Terminal, val conflictMode: ConflictMode)
 
+/**
+ * Controls whether configurations are included with the parser states.
+ */
 enum class ConfigMode { Dbg, Opt }
 
 /**
- * Builds an LR(1) state machine for the input grammar.
- * The first production MUST be the augmenting production.
- * The parser can be generated with (Dbg) or without (Opt) configuration info for debugging or space-saving, respectively.
+ * Controls whether shift-reduce conflicts are forbidden or resolved by shifting.
  */
-fun generateParser(grammar: List<Production>, config: ConfigMode = ConfigMode.Opt): Parser {
+enum class ConflictMode { Forbid, Shift }
+
+class ParserGeneratorConfig {
+    var configMode: ConfigMode = ConfigMode.Opt
+    var conflictMode: ConflictMode = ConflictMode.Forbid
+}
+
+/**
+ * Builds an LR(1) state machine for the input grammar without state configurations and shift-reduce conflicts.
+ */
+fun generateParser(grammar: List<Production>): Parser = generateParser(grammar) { }
+
+/**
+ * Builds an LR(1) state machine for the input grammar.
+ * The first production in the grammar MUST be the augmenting production (from which the start and end symbols are deduced).
+ */
+fun generateParser(grammar: List<Production>, configure: ParserGeneratorConfig.() -> Unit): Parser {
+    val config = ParserGeneratorConfig().apply { configure() }
     val augmenter = grammar.first()
     // The LHS and last element of the RHS of the augmenting production define the start and end tokens.
     val (start, end) = augmenter.lhs to augmenter.rhs.reversed().first()
@@ -182,17 +200,28 @@ fun generateParser(grammar: List<Production>, config: ConfigMode = ConfigMode.Op
                 } else Reduce(it)
             }
 
-            true to true -> Resolve(reductions(), transitions())
+            true to true -> {
+                val reductions = reductions()
+                val transitions = transitions()
+                if (config.conflictMode == ConflictMode.Forbid) {
+                    val conflicts = reductions.keys intersect transitions.keys
+                    require(conflicts.isEmpty()) {
+                        "Shift-reduce conflict on ${conflicts.joinToString(", ")} in ${parseState.show}"
+                    }
+                }
+                Resolve(reductions, transitions)
+            }
+
             else -> error("Empty state: ${parseState.show}")
         }
         return parseState
     }
     runState(listOf(Config(augmenter)))
-    val states = when (config) {
+    val states = when (config.configMode) {
         ConfigMode.Dbg -> parseStates.map { ParseState.Dbg(it.id, it.action!!, it.basis, it.extension) }
         ConfigMode.Opt -> parseStates.map { ParseState.Opt(it.id, it.action!!) }
     }
-    return Parser(states, start, end as Terminal)
+    return Parser(states, start, end as Terminal, config.conflictMode)
 }
 
 private val ParseConfigState.show: String
