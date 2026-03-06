@@ -20,7 +20,7 @@ data class ParseNode(val token: Token, val children: List<ParseNode> = emptyList
  */
 fun parseToTree(parser: Parser, input: Iterator<TerminalToken>): ParseNode {
     val tree = Stack<ParseNode>()
-    val builder = object : ParseListener() {
+    val builder = object : ParserListener() {
         override fun shift(token: Token) {
             tree.push(ParseNode(token))
         }

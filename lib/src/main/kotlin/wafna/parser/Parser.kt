@@ -44,7 +44,7 @@ internal class InputQueue(end: Terminal, val input: Iterator<TerminalToken>) {
 /**
  * Consumes the actions of the parser.
  */
-abstract class ParseListener {
+abstract class ParserListener {
     // After a reduction the new node is pushed back to the input.
     // This remembers to ignore it when it gets shifted back.
     // Note: there are never two reductions in succession;
@@ -63,9 +63,12 @@ abstract class ParseListener {
         reduced = true
         reduce(token, count)
     }
+
+    open fun shiftAction(states: List<Int>, input: TokenType, shift: Int) {}
+    open fun reduceAction(states: List<Int>, input: TokenType, count: Int, tokenType: TokenType) {}
 }
 
-fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalToken>) {
+fun runParser(parser: Parser, listener: ParserListener, input: Iterator<TerminalToken>) {
     // State table.
     val states = parser.states.associateBy { it.id }.run {
         Array(size) { getValue(it) }
@@ -83,9 +86,9 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
         when (val shift = shifts[pop.type]) {
             null -> error("No shift found for ${pop.type} at ${state.show}")
             else -> {
+                listener.shiftAction(stack.toList(), pop.type, shift)
                 listener.shifted(pop)
                 stack.push(shift)
-//                println("INPUT: ${pop.type} -> SHIFT $shift")
             }
         }
     }
@@ -95,10 +98,10 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
         when (val reduction = reductions[peek.type]) {
             null -> error("No reduction on $peek in ${state.show}")
             else -> {
+                listener.reduceAction(stack.toList(), peek.type, reduction.count, reduction.to)
                 repeat(reduction.count) { stack.pop() }
                 listener.reduced(reduction.to, reduction.count)
                 input.push(NonTerminalToken(reduction.to))
-//                println("INPUT: ${peek.type} -> REDUCE ${reduction.count} ${reduction.to}")
             }
         }
     }
@@ -106,7 +109,6 @@ fun runParser(parser: Parser, listener: ParseListener, input: Iterator<TerminalT
     // Run the machine.
     var accepted = false
     while (!accepted) {
-//        println("STACK: ${stack.toList().joinToString(", ")}")
         val state = states[stack.peek()]
         when (val action = state.action) {
             is Shift -> shift(action.shifts, state)

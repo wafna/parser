@@ -24,8 +24,8 @@ class TestAST {
         val parser = generateParser(grammar) {
             conflictMode = ConflictMode.Shift
         }
-        println("--- States [${parser.states.size}]")
-        parser.states.forEach { print("--- "); print(it.show) }
+        //        println("--- States [${parser.states.size}]")
+//        parser.states.forEach { print("--- "); print(it.show) }
         fun run(vararg input: TerminalToken) {
             println("INPUT: ${input.joinToString(" ")}")
             val builder = TreeBuilder()
@@ -83,7 +83,7 @@ class TestAST {
             Expr2.produces(LParen, Expr, RParen)
         )
 
-        class TreeBuilder : ParseListener() {
+        class TreeBuilder : ParserListener() {
             val tree = Stack<PNode>()
             val ops = Stack<Token>()
             override fun shift(token: Token) {
@@ -124,6 +124,16 @@ class TestAST {
                 require(tree.size == 1) {
                     "Tree ${tree.size}\n${List(tree.size) { i -> "[$i]\n${tree.pop().show}" }.joinToString("\n")}"
                 }
+            }
+
+            override fun shiftAction(states: List<Int>, input: TokenType, shift: Int) {
+                println("STACK  ${states.joinToString(", ")}")
+                println("\tSHIFT  $input -> $shift")
+            }
+
+            override fun reduceAction(states: List<Int>, input: TokenType, count: Int, tokenType: TokenType) {
+                println("STACK  ${states.joinToString(", ")}")
+                println("\tREDUCE  $input -> $tokenType $count")
             }
         }
     }
