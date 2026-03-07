@@ -7,11 +7,11 @@ import wafna.parser.token
 // Token Types
 //// Augmenting.
 object Start : NonTerminal("@")
-object End : Terminal("$")
+object End : Terminal("<$>")
 //// Non-terminals.
-object EOp : NonTerminal()
-object EAtom : NonTerminal() // id, literal, or parenthetical
-object EParens : NonTerminal()
+object Expr : NonTerminal("E")
+object Term : NonTerminal("T")
+object Prod : NonTerminal("P")
 //// Terminals.
 object Id : Terminal("id")
 object LParen : Terminal("(")

@@ -21,7 +21,7 @@ class NonTerminalToken(override val type: NonTerminal) : Token() {
  * Reductions push tokens back into the input stream.
  */
 internal class InputQueue(end: Terminal, val input: Iterator<TerminalToken>) {
-    val eof = TerminalToken(end, "<EOF>")
+    val eof = TerminalToken(end, "<$>")
     private val pushback = Stack<Token>()
     fun peek(): Token =
         if (pushback.isNotEmpty()) pushback.peek()
@@ -40,10 +40,18 @@ internal class InputQueue(end: Terminal, val input: Iterator<TerminalToken>) {
 /**
  * For visibility into the parser.
  */
-open class StateListener {
-    open fun shift(states: List<Int>, input: TokenType, shift: Int) {}
-    open fun reduce(states: List<Int>, input: TokenType, count: Int, tokenType: TokenType) {}
-    open fun accept(states: List<Int>) {}
+interface StateListener {
+    fun begin()
+    fun shift(stack: List<Int>, state: ParseState, input: Token, shift: Int)
+    fun reduce(stack: List<Int>, state: ParseState, input: Token, count: Int, tokenType: TokenType)
+    fun accept(stack: List<Int>, state: ParseState)
+}
+
+object StateListenerNOOP : StateListener {
+    override fun begin() {}
+    override fun shift(stack: List<Int>, state: ParseState, input: Token, shift: Int) {}
+    override fun reduce(stack: List<Int>, state: ParseState, input: Token, count: Int, tokenType: TokenType) {}
+    override fun accept(stack: List<Int>, state: ParseState) {}
 }
 /**
  * Consumes the actions of the parser.
@@ -70,17 +78,14 @@ abstract class ActionListener {
 }
 
 class RunConfig {
-    var stateListener = StateListener()
+    var stateListener: StateListener = StateListenerNOOP
 }
-
-fun runParser(parser: Parser, listener: ActionListener, input: Iterator<TerminalToken>) =
-    runParser(parser, listener, input) { }
 
 fun runParser(
     parser: Parser,
-    listener: ActionListener,
+    builder: ActionListener,
     input: Iterator<TerminalToken>,
-    configure: RunConfig.() -> Unit
+    configure: RunConfig.() -> Unit = {}
 ) {
     val config = RunConfig().apply { configure() }
     // State table.
@@ -99,9 +104,9 @@ fun runParser(
         when (val shift = shifts[pop.type]) {
             null -> error("No shift found for ${pop.type} at ${state.show}")
             else -> {
-                config.stateListener.shift(stack.toList(), pop.type, shift)
+                config.stateListener.shift(stack.toList(), state, pop, shift)
                 stack.push(shift)
-                listener.shifted(pop)
+                builder.shifted(pop)
             }
         }
     }
@@ -111,14 +116,15 @@ fun runParser(
         when (val reduction = reductions[peek.type]) {
             null -> error("No reduction on $peek in ${state.show}")
             else -> {
-                config.stateListener.reduce(stack.toList(), peek.type, reduction.count, reduction.to)
+                config.stateListener.reduce(stack.toList(), state, peek, reduction.count, reduction.to)
                 repeat(reduction.count) { stack.pop() }
                 input.push(NonTerminalToken(reduction.to))
-                listener.reduced(reduction.to, reduction.count)
+                builder.reduced(reduction.to, reduction.count)
             }
         }
     }
     // Run the machine.
+    config.stateListener.begin()
     var accepted = false
     while (!accepted) {
         val state = states[stack.peek()]
@@ -129,16 +135,16 @@ fun runParser(
                 val peek = input.peek()
                 with(action) {
                     if (reductions.contains(peek.type)
-                        && !(parser.conflictMode == ConflictMode.Shift && shifts.keys.contains(peek.type))
+                        && !(parser.conflictMode == ConflictMode.Shift && shifts.contains(peek.type))
                     ) reduce(reductions, state)
                     else shift(shifts, state)
                 }
             }
 
             is Accept -> {
-                config.stateListener.accept(stack.toList())
+                config.stateListener.accept(stack.toList(), state)
                 accepted = true
-                listener.accept()
+                builder.accept()
             }
         }
     }
@@ -146,7 +152,7 @@ fun runParser(
 
 val Config.show: String
     get() = buildString {
-        append(production.lhs.name)
+        append(production.lhs.toString())
         append(" →")
         production.rhs.withIndex().forEach { (i, e) ->
             if (i == dot) append(" •")
@@ -161,41 +167,38 @@ val ParseState.show: String
         is ParseState.Dbg -> show
         is ParseState.Opt -> show
     }
+
+private fun Map<Terminal, Reduction>.showReductions(): String =
+    toList().joinToString(", ") { "${it.first} → ${it.second.to}(${it.second.count})" }
+
+private fun Map<TokenType, Int>.showShifts(): String =
+    toList().joinToString(", ") { "${it.first} → ${it.second}" }
+
 val ParseState.Dbg.show: String
     get() = buildString {
         appendLine("STATE $id")
         basis.forEach { appendLine("> ${it.show}") }
         extension.forEach { appendLine("  ${it.show}") }
-        fun Map<Terminal, Reduction>.show(): String =
-            toList().joinToString(", ") { "${it.first} → (${it.second.to}, ${it.second.count})" }
-
-        fun Map<TokenType, Int>.show(): String =
-            toList().joinToString(", ") { "${it.first} → ${it.second}" }
         when (val a = action) {
-            is Accept -> appendLine("\tACCEPT")
-            is Reduce -> appendLine("\tREDUCE: ${a.reductions.show()}")
-            is Shift -> appendLine("\tSHIFT: ${a.shifts.show()}")
+            is Accept -> appendLine("  ACCEPT")
+            is Reduce -> appendLine("  REDUCE: ${a.reductions.showReductions()}")
+            is Shift -> appendLine("  SHIFT: ${a.shifts.showShifts()}")
             is Resolve -> {
                 val conflicts = if (a.conflicts.isEmpty()) "" else a.conflicts.joinToString(" ")
-                appendLine("\tCONFLICTS: $conflicts\n\tSHIFT: ${a.shifts.show()}\n\tREDUCE: ${a.reductions.show()}")
+                appendLine("  CONFLICTS: $conflicts\n      SHIFT: ${a.shifts.showShifts()}\n     REDUCE: ${a.reductions.showReductions()}")
             }
         }
     }
 val ParseState.Opt.show: String
     get() = buildString {
         appendLine("STATE $id")
-        fun Map<Terminal, Reduction>.show(): String =
-            toList().joinToString(", ") { "${it.first} → (${it.second.to}, ${it.second.count})" }
-
-        fun Map<TokenType, Int>.show(): String =
-            toList().joinToString(", ") { "${it.first} → ${it.second}" }
         when (val a = action) {
-            is Accept -> appendLine("\tACCEPT")
-            is Reduce -> appendLine("\tREDUCE: ${a.reductions.show()}")
-            is Shift -> appendLine("\tSHIFT: ${a.shifts.show()}")
+            is Accept -> appendLine("ACCEPT")
+            is Reduce -> appendLine("REDUCE: ${a.reductions.showReductions()}")
+            is Shift -> appendLine("SHIFT: ${a.shifts.showShifts()}")
             is Resolve -> {
                 val conflicts = if (a.conflicts.isEmpty()) "" else a.conflicts.joinToString(" ")
-                appendLine("\tCONFLICTS: $conflicts\n\t    SHIFT: ${a.shifts.show()}\n\t   REDUCE: ${a.reductions.show()}")
+                appendLine("CONFLICTS: $conflicts\n    SHIFT: ${a.shifts.showShifts()}\n   REDUCE: ${a.reductions.showReductions()}")
             }
         }
     }
