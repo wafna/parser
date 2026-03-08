@@ -28,8 +28,11 @@ class TestArithmetic {
 //        testInput(listOf(x, plus, y, times, z), AST.Plus(AST.Id(x), AST.Times(AST.Id(y), AST.Id(z))))
 //        testInput(listOf(lparen, x, plus, y, rparen, times, z), AST.Times(AST.Plus(AST.Id(x), AST.Id(y)), AST.Id(z)))
 //        testInput(listOf(x, divide, y, times, z), AST.Times(AST.Divide(AST.Id(x), AST.Id(y)), AST.Id(z)))
+//        testInput(listOf(x, divide, lparen, y, times, z, rparen), AST.Divide(AST.Id(x), AST.Times(AST.Id(y), AST.Id(z))))
+//        testInput(listOf(x, times, lparen, y, divide, z, rparen), AST.Times(AST.Id(x), AST.Divide(AST.Id(y), AST.Id(z))))
+        testInput(listOf(lparen, y, times, z, rparen), AST.Times(AST.Id(y), AST.Id(z)))
 //        testInput(listOf(x, minus, lparen, y, times, z, rparen, plus, w), AST.Plus(AST.Minus(AST.Id(x), AST.Times(AST.Id(y), AST.Id(z))), AST.Id(w)))
-        testInput(listOf(lparen, x, plus, y, rparen, times, z, minus, w), AST.Minus(AST.Times(AST.Plus(AST.Id(x), AST.Id(y)), AST.Id(z)), AST.Id(w)))
+//        testInput(listOf(lparen, x, plus, y, rparen, times, z, minus, w), AST.Minus(AST.Times(AST.Plus(AST.Id(x), AST.Id(y)), AST.Id(z)), AST.Id(w)))
     }
 
     companion object {
@@ -52,7 +55,7 @@ class TestArithmetic {
             conflictMode = ConflictMode.Shift
         }.apply {
             println("--- Parser [${states.size}]")
-            states.forEach { print("\uD80C\uDFF8 "); print(it.show) }
+//            states.forEach { print("\uD80C\uDFF8 "); print(it.show) }
         }
 
         fun testInput(input: List<TerminalToken>, expected: AST) {
