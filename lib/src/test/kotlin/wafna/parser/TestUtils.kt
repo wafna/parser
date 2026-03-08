@@ -15,9 +15,9 @@ object DebugStateListener : StateListener {
     override fun shift(stack: List<Int>, state: ParseState, input: Token, shift: Int) {
         val header = when (val action = state.action) {
             is Resolve -> if (action.shifts.contains(input.type) && action.reductions.contains(input.type))
-                "* CONFLICT  " else "*    SHIFT  "
+                "* conflict  " else "*    shift  "
 
-            else -> "     SHIFT  "
+            else -> "     shift  "
         }
         println(
             "${showStep()}${header}${"$input".padEnd(8)} →  ${"%d".format(shift).padEnd(12)}  [${
@@ -34,8 +34,8 @@ object DebugStateListener : StateListener {
         tokenType: TokenType
     ) {
         val header = when (state.action) {
-            is Resolve -> "*   REDUCE  "
-            else -> "    REDUCE  "
+            is Resolve -> "*   reduce  "
+            else -> "    reduce  "
         }
         println(
             "${showStep()}$header${"$input".padEnd(8)} →  ${"$tokenType $count".padEnd(12)}  [${
@@ -45,6 +45,6 @@ object DebugStateListener : StateListener {
     }
 
     override fun accept(stack: List<Int>, state: ParseState) {
-        println("${showStep()}    ACCEPT")
+        println("${showStep()}    accept")
     }
 }
